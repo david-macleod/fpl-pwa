@@ -262,11 +262,7 @@ function displayMatches() {
         return bHasDavid - aHasDavid;
     });
     
-    // Create matches row container for 2-column layout
-    const matchesRow = document.createElement('div');
-    matchesRow.className = 'matches-row';
-    
-    sortedMatches.forEach((match, index) => {
+    sortedMatches.forEach((match) => {
         let team1 = teamsData[match.team1];
         let team2 = teamsData[match.team2];
         
@@ -321,13 +317,7 @@ function displayMatches() {
         matchDiv.appendChild(headerDiv);
         matchDiv.appendChild(teamsGridDiv);
         
-        matchesRow.appendChild(matchDiv);
-        
-        // Add row to container every 2 matches or at the end
-        if ((index + 1) % 2 === 0 || index === sortedMatches.length - 1) {
-            matchesContainer.appendChild(matchesRow.cloneNode(true));
-            matchesRow.innerHTML = '';
-        }
+        matchesContainer.appendChild(matchDiv);
     });
     
     matchesContainer.classList.remove('hidden');

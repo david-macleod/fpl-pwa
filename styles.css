@@ -65,18 +65,13 @@ body {
     padding: 4px;
 }
 
-.matches-row {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 8px;
-    margin-bottom: 8px;
-}
 
 .match-container {
     background: #fff;
     border-radius: 4px;
     box-shadow: 0 1px 3px rgba(0,0,0,0.1);
     overflow: hidden;
+    margin-bottom: 8px;
 }
 
 /* Match Header */
@@ -239,11 +234,6 @@ body {
 }
 
 /* Mobile optimizations */
-@media (max-width: 768px) {
-    .matches-row {
-        grid-template-columns: 1fr;
-    }
-}
 
 @media (max-width: 500px) {
     .teams-grid {
