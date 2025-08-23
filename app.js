@@ -305,11 +305,6 @@ function displayMatches() {
         const team1GridDiv = createTeamGrid(team1);
         teamsGridDiv.appendChild(team1GridDiv);
         
-        // Separator
-        const separatorDiv = document.createElement('div');
-        separatorDiv.className = 'grid-separator';
-        teamsGridDiv.appendChild(separatorDiv);
-        
         // Team 2 grid
         const team2GridDiv = createTeamGrid(team2);
         teamsGridDiv.appendChild(team2GridDiv);
