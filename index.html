@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#37003c">
+    <title>FPL H2H Live</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="manifest" href="manifest.json">
+    <link rel="icon" type="image/png" href="icon-192.png">
+    <link rel="apple-touch-icon" href="icon-192.png">
+</head>
+<body>
+    <div class="header">
+        <span class="league-name">FPL H2H</span>
+        <span id="gwInfo">GW-</span>
+        <button id="refresh">↻</button>
+    </div>
+
+    <div id="loading" class="loading hidden">Loading...</div>
+    <div id="error" class="error hidden"></div>
+
+    <div id="matchesContainer" class="matches-container hidden"></div>
+
+    <script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,272 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: -apple-system, system-ui, sans-serif;
+    font-size: 11px;
+    background: #f5f5f5;
+    color: #000;
+}
+
+.header {
+    position: sticky;
+    top: 0;
+    background: #37003c;
+    padding: 6px 8px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    z-index: 100;
+}
+
+.league-name {
+    color: #fff;
+    font-weight: bold;
+    font-size: 12px;
+}
+
+#gwInfo {
+    color: #00ff87;
+    font-size: 11px;
+    font-weight: bold;
+}
+
+#refresh {
+    background: #00ff87;
+    color: #000;
+    border: none;
+    padding: 3px 8px;
+    border-radius: 3px;
+    font-weight: bold;
+    font-size: 14px;
+    cursor: pointer;
+}
+
+.loading, .error {
+    padding: 8px;
+    text-align: center;
+    font-size: 11px;
+}
+
+.error {
+    background: #ffebee;
+    color: #c62828;
+}
+
+.hidden {
+    display: none !important;
+}
+
+/* Match Container */
+.matches-container {
+    padding: 4px;
+}
+
+.matches-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    margin-bottom: 8px;
+}
+
+.match-container {
+    background: #fff;
+    border-radius: 4px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    overflow: hidden;
+}
+
+/* Match Header */
+.match-header {
+    display: flex;
+    align-items: center;
+    padding: 6px;
+    border-bottom: 1px solid #e0e0e0;
+    background: #fafafa;
+}
+
+.team-header {
+    flex: 1;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 3px 6px;
+    border-radius: 2px;
+}
+
+.team-header.winning {
+    background: #e8f5e9;
+}
+
+.team-header.draw {
+    background: #fff3e0;
+}
+
+.team-info {
+    display: flex;
+    flex-direction: column;
+}
+
+.team-name {
+    font-weight: bold;
+    font-size: 11px;
+    color: #37003c;
+}
+
+.manager-name {
+    font-size: 9px;
+    color: #666;
+}
+
+.score {
+    font-size: 16px;
+    font-weight: bold;
+    color: #1a237e;
+    margin-left: 4px;
+}
+
+.points-hit {
+    font-size: 12px;
+    font-weight: normal;
+    color: #ccc;
+}
+
+.vs {
+    padding: 0 8px;
+    color: #999;
+    font-size: 10px;
+}
+
+/* Teams Grid */
+.teams-grid {
+    display: flex;
+    padding: 6px;
+    gap: 6px;
+}
+
+.team-grid {
+    flex: 1;
+    min-width: 0;
+}
+
+.grid-separator {
+    width: 1px;
+    background: #e0e0e0;
+    margin: 0 4px;
+}
+
+/* Grid Headers */
+.grid-header {
+    font-weight: bold;
+    font-size: 10px;
+    color: #666;
+    padding: 4px 0;
+    border-bottom: 1px solid #e0e0e0;
+    margin-bottom: 4px;
+}
+
+.bench-header {
+    margin-top: 8px;
+}
+
+/* Players Grid */
+.players-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.player-row {
+    display: grid;
+    grid-template-columns: 1fr 35px 20px;
+    gap: 2px;
+    padding: 2px 3px;
+    background: #f9f9f9;
+    border-radius: 2px;
+    align-items: center;
+    font-size: 9px;
+}
+
+.player-row.game-finished {
+    background: #d8f0d9;
+}
+
+.player-row.no-minutes {
+    background: #ffd8db;
+}
+
+.player-row.bench-played {
+    background: #fffbd6;
+}
+
+.player-row.will-auto-sub {
+    border: 1px solid #333;
+}
+
+.bench-player {
+    background: #fafafa;
+}
+
+.player-name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-weight: 500;
+}
+
+.position-badge {
+    display: inline-block;
+    width: 12px;
+    text-align: center;
+    color: #ccc;
+    font-weight: bold;
+    margin-right: 2px;
+}
+
+.player-team {
+    text-align: center;
+    color: #666;
+    font-size: 9px;
+}
+
+.player-points {
+    text-align: right;
+    font-weight: bold;
+    color: #37003c;
+}
+
+/* Mobile optimizations */
+@media (max-width: 768px) {
+    .matches-row {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 500px) {
+    .teams-grid {
+        flex-direction: column;
+        gap: 8px;
+    }
+    
+    .grid-separator {
+        width: 100%;
+        height: 1px;
+        margin: 4px 0;
+    }
+    
+    .match-header {
+        flex-direction: column;
+        gap: 6px;
+    }
+    
+    .team-header {
+        width: 100%;
+    }
+    
+    .vs {
+        display: none;
+    }
+}

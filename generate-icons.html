@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Generate FPL Icons</title>
+</head>
+<body>
+    <h1>FPL App Icon Generator</h1>
+    <p>Right-click and save each canvas as an image:</p>
+    
+    <h2>icon-192.png</h2>
+    <canvas id="icon192" width="192" height="192"></canvas>
+    
+    <h2>icon-512.png</h2>
+    <canvas id="icon512" width="512" height="512"></canvas>
+    
+    <script>
+        function drawIcon(canvasId, size) {
+            const canvas = document.getElementById(canvasId);
+            const ctx = canvas.getContext('2d');
+            
+            // Background gradient
+            const gradient = ctx.createLinearGradient(0, 0, size, size);
+            gradient.addColorStop(0, '#37003c');
+            gradient.addColorStop(1, '#4a0050');
+            ctx.fillStyle = gradient;
+            ctx.fillRect(0, 0, size, size);
+            
+            // White circle background for text
+            ctx.beginPath();
+            ctx.arc(size/2, size/2, size/3, 0, Math.PI * 2);
+            ctx.fillStyle = 'white';
+            ctx.fill();
+            
+            // FPL text
+            ctx.fillStyle = '#37003c';
+            ctx.font = `bold ${size/4}px Arial`;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('FPL', size/2, size/2 - size/12);
+            
+            // Live text
+            ctx.fillStyle = '#00ff87';
+            ctx.font = `${size/6}px Arial`;
+            ctx.fillText('LIVE', size/2, size/2 + size/8);
+            
+            // Add border
+            ctx.strokeStyle = '#00ff87';
+            ctx.lineWidth = size/50;
+            ctx.beginPath();
+            ctx.arc(size/2, size/2, size/3 + size/25, 0, Math.PI * 2);
+            ctx.stroke();
+        }
+        
+        // Generate both icons
+        drawIcon('icon192', 192);
+        drawIcon('icon512', 512);
+        
+        // Instructions
+        console.log('Right-click on each canvas and save as:');
+        console.log('1. icon-192.png');
+        console.log('2. icon-512.png');
+    </script>
+</body>
+</html>
