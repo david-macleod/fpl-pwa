@@ -70,14 +70,27 @@ async function fetchLeagueData() {
         const fixturesResponse = await fetchWithProxy(`${FPL_BASE_URL}/fixtures/?event=${currentGameweek}`);
         fixturesResponse.forEach(fixture => {
             // Store detailed fixture info for each team
-            const fixtureInfo = {
+            const homeTeam = bootstrapData.teams.find(t => t.id === fixture.team_h);
+            const awayTeam = bootstrapData.teams.find(t => t.id === fixture.team_a);
+            
+            const homeFixtureInfo = {
                 finished: fixture.finished || fixture.finished_provisional,
                 started: fixture.started,
                 minutes: fixture.minutes || 0,
-                fixtureId: fixture.id
+                fixtureId: fixture.id,
+                opponent: awayTeam?.short_name || '',
+                isHome: true
             };
-            fixturesData[fixture.team_h] = fixtureInfo;
-            fixturesData[fixture.team_a] = fixtureInfo;
+            const awayFixtureInfo = {
+                finished: fixture.finished || fixture.finished_provisional,
+                started: fixture.started,
+                minutes: fixture.minutes || 0,
+                fixtureId: fixture.id,
+                opponent: homeTeam?.short_name || '',
+                isHome: false
+            };
+            fixturesData[fixture.team_h] = homeFixtureInfo;
+            fixturesData[fixture.team_a] = awayFixtureInfo;
         });
         
         // Get H2H league standings to get team info
@@ -179,17 +192,39 @@ async function fetchAllTeamDetails() {
                         }
                     }
                     
+                    const opponentTeam = fixtureInfo?.opponent || '';
+                    const displayTeam = fixtureInfo?.isHome ? opponentTeam : opponentTeam.toLowerCase();
+                    
+                    // Generate event emojis based on stats
+                    let eventEmojis = '';
+                    if (liveStats.goals_scored > 0) {
+                        eventEmojis += '⚽️'.repeat(liveStats.goals_scored);
+                    }
+                    if (liveStats.assists > 0) {
+                        eventEmojis += '👟'.repeat(liveStats.assists);
+                    }
+                    if (liveStats.yellow_cards > 0) {
+                        eventEmojis += '🟨'.repeat(liveStats.yellow_cards);
+                    }
+                    if (liveStats.red_cards > 0) {
+                        eventEmojis += '🟥'.repeat(liveStats.red_cards);
+                    }
+                    if (liveStats.saves > 2 && playerInfo?.position === 'GKP') {
+                        eventEmojis += '🧤';
+                    }
+                    
                     return {
                         position: pick.position,
                         name: playerInfo?.name || 'Unknown',
-                        team: playerInfo?.team || '',
+                        team: displayTeam,
                         playerPosition: playerInfo?.position || '',
                         points: points,
                         isCaptain: pick.is_captain,
                         isViceCaptain: pick.is_vice_captain,
                         minutes: liveStats.minutes || 0,
                         playerDone: playerDone,
-                        didntPlay: didntPlay
+                        didntPlay: didntPlay,
+                        eventEmojis: eventEmojis
                     };
                 });
                 
@@ -287,7 +322,6 @@ function displayMatches() {
                 </div>
                 <span class="score">${team1.transfersCost > 0 ? `<span class="points-hit">(-${team1.transfersCost}) </span>` : ''}${team1.livePoints}</span>
             </div>
-            <div class="vs">vs</div>
             <div class="team-header">
                 <div class="team-info">
                     <span class="team-name">${team2.name}</span>
@@ -304,6 +338,11 @@ function displayMatches() {
         // Team 1 grid
         const team1GridDiv = createTeamGrid(team1);
         teamsGridDiv.appendChild(team1GridDiv);
+        
+        // Separator
+        const separatorDiv = document.createElement('div');
+        separatorDiv.className = 'grid-separator';
+        teamsGridDiv.appendChild(separatorDiv);
         
         // Team 2 grid
         const team2GridDiv = createTeamGrid(team2);
