@@ -107,7 +107,7 @@ body {
 
 .team-name {
     font-weight: bold;
-    font-size: 11px;
+    font-size: 12px;
     color: #37003c;
 }
 
@@ -164,7 +164,7 @@ body {
 }
 
 .bench-header {
-    margin-top: 8px;
+    margin-top: 4px;
 }
 
 /* Players Grid */
@@ -180,7 +180,7 @@ body {
     padding: 2px 3px;
     background: #f9f9f9;
     border-radius: 2px;
-    font-size: 9px;
+    font-size: 10px;
     table-layout: fixed;
 }
 
@@ -245,7 +245,7 @@ body {
 .loading-dots {
     display: inline-block;
     margin: 0 1px;
-    font-size: 9px;
+    font-size: 10px;
     color: #888;
     animation: loading-dots 1.4s infinite ease-in-out both;
 }
@@ -271,7 +271,7 @@ body {
 
 .bonus-pending {
     display: inline-block;
-    font-size: 9px;
+    font-size: 10px;
     color: #888;
     animation: bonus-pending 1.4s infinite ease-in-out;
 }

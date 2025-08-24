@@ -243,7 +243,8 @@ async function fetchAllTeamDetails() {
                         didntPlay: didntPlay,
                         eventEmojis: eventEmojis,
                         gameInProgress: gameInProgress,
-                        bonusPending: bonusPending
+                        bonusPending: bonusPending,
+                        gameStarted: fixtureInfo?.started || false
                     };
                 });
                 
@@ -470,11 +471,6 @@ function createTeamGrid(team) {
     const gridDiv = document.createElement('div');
     gridDiv.className = 'team-grid';
     
-    // XI header
-    const xiHeader = document.createElement('div');
-    xiHeader.className = 'grid-header';
-    xiHeader.textContent = 'Starting XI';
-    gridDiv.appendChild(xiHeader);
     
     // XI players
     const xiGrid = document.createElement('div');
@@ -504,10 +500,13 @@ function createTeamGrid(team) {
             loadingIndicator = '<span class="loading-indicator"><span class="loading-dots">•</span><span class="loading-dots">•</span><span class="loading-dots">•</span></span>';
         }
         
+        const displayPoints = !player.gameStarted ? '' : 
+                              (player.didntPlay ? '-' : player.points);
+        
         playerDiv.innerHTML = `
             <span class="player-name"><span class="position-badge">${posLetter}</span>${player.name}${player.isCaptain ? ' (C)' : player.isViceCaptain ? ' (V)' : ''} ${loadingIndicator}</span>
             <span class="player-team">${player.team}</span>
-            <span class="player-points">${player.points}</span>
+            <span class="player-points">${displayPoints}</span>
         `;
         
         xiGrid.appendChild(playerDiv);
@@ -559,10 +558,13 @@ function createTeamGrid(team) {
             loadingIndicator = '<span class="loading-indicator"><span class="loading-dots">•</span><span class="loading-dots">•</span><span class="loading-dots">•</span></span>';
         }
         
+        const displayPoints = !player.gameStarted ? '' : 
+                              (player.didntPlay ? '-' : player.points);
+        
         playerDiv.innerHTML = `
             <span class="player-name"><span class="position-badge">${posLetter}</span>${player.name} ${loadingIndicator}</span>
             <span class="player-team">${player.team}</span>
-            <span class="player-points">${player.points}</span>
+            <span class="player-points">${displayPoints}</span>
         `;
         
         benchGrid.appendChild(playerDiv);
