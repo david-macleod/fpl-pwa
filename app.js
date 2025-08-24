@@ -189,16 +189,21 @@ async function fetchAllTeamDetails() {
                         bonusPending = fixtureInfo.finished_provisional && !fixtureInfo.finished && playerMinutes > 0;
                         
                         // Player is done if:
-                        // 1. Game is finished
+                        // 1. Game is fully finished (with bonus points awarded)
                         if (fixtureInfo.finished) {
                             playerDone = true;
                             didntPlay = playerMinutes === 0;
                         }
-                        // 2. Player got a red card
+                        // 2. Game finished (whistle blown) - all players are done regardless of bonus status
+                        else if (fixtureInfo.finished_provisional) {
+                            playerDone = true;
+                            didntPlay = playerMinutes === 0;
+                        }
+                        // 3. Game in progress and player got a red card
                         else if (hasRedCard) {
                             playerDone = true;
                         }
-                        // 3. Player was subbed off (played but less than game minutes - 5)
+                        // 4. Game in progress and player was subbed off (played but less than game minutes - 5)
                         else if (playerMinutes > 0 && playerMinutes < gameMinutes - 5) {
                             playerDone = true;
                         }
