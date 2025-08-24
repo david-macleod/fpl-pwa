@@ -273,15 +273,17 @@ body {
     display: inline-block;
     font-size: 12px;
     color: #888;
-    animation: bonus-pending 1s infinite ease-in-out;
+    animation: bonus-pending 1.4s infinite ease-in-out;
 }
 
 @keyframes bonus-pending {
-    0%, 50% { 
-        opacity: 1;
-    }
-    100% { 
+    0%, 80%, 100% { 
         opacity: 0.3;
+        transform: scale(0.8);
+    }
+    40% { 
+        opacity: 1;
+        transform: scale(1);
     }
 }
 
