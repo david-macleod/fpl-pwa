@@ -73,8 +73,10 @@ async function fetchLeagueData() {
             const homeTeam = bootstrapData.teams.find(t => t.id === fixture.team_h);
             const awayTeam = bootstrapData.teams.find(t => t.id === fixture.team_a);
             
+            
             const homeFixtureInfo = {
-                finished: fixture.finished || fixture.finished_provisional,
+                finished: fixture.finished,
+                finished_provisional: fixture.finished_provisional,
                 started: fixture.started,
                 minutes: fixture.minutes || 0,
                 fixtureId: fixture.id,
@@ -82,7 +84,8 @@ async function fetchLeagueData() {
                 isHome: true
             };
             const awayFixtureInfo = {
-                finished: fixture.finished || fixture.finished_provisional,
+                finished: fixture.finished,
+                finished_provisional: fixture.finished_provisional,
                 started: fixture.started,
                 minutes: fixture.minutes || 0,
                 fixtureId: fixture.id,
@@ -170,11 +173,20 @@ async function fetchAllTeamDetails() {
                     // Determine if player is "done" with more accurate logic
                     let playerDone = false;
                     let didntPlay = false;
+                    let gameInProgress = false;
+                    let bonusPending = false;
                     
                     if (fixtureInfo) {
                         const gameMinutes = fixtureInfo.minutes || 0;
                         const playerMinutes = liveStats.minutes || 0;
                         const hasRedCard = liveStats.red_cards > 0;
+                        const hasBonus = liveStats.bonus > 0;
+                        
+                        // Check if game is in progress (started but whistle not yet blown)
+                        gameInProgress = fixtureInfo.started && !fixtureInfo.finished_provisional;
+                        
+                        // Check if whistle blown but bonus points not yet awarded
+                        bonusPending = fixtureInfo.finished_provisional && !fixtureInfo.finished && playerMinutes > 0;
                         
                         // Player is done if:
                         // 1. Game is finished
@@ -224,7 +236,9 @@ async function fetchAllTeamDetails() {
                         minutes: liveStats.minutes || 0,
                         playerDone: playerDone,
                         didntPlay: didntPlay,
-                        eventEmojis: eventEmojis
+                        eventEmojis: eventEmojis,
+                        gameInProgress: gameInProgress,
+                        bonusPending: bonusPending
                     };
                 });
                 
@@ -478,8 +492,15 @@ function createTeamGrid(team) {
         const positionMap = {'GKP': 'G', 'DEF': 'D', 'MID': 'M', 'FWD': 'F'};
         const posLetter = positionMap[player.playerPosition] || '';
         
+        let loadingIndicator = '';
+        if (player.bonusPending) {
+            loadingIndicator = '<span class="loading-indicator"><span class="bonus-pending">•</span></span>';
+        } else if (player.gameInProgress && !player.playerDone) {
+            loadingIndicator = '<span class="loading-indicator"><span class="loading-dots">•</span><span class="loading-dots">•</span><span class="loading-dots">•</span></span>';
+        }
+        
         playerDiv.innerHTML = `
-            <span class="player-name"><span class="position-badge">${posLetter}</span>${player.name}${player.isCaptain ? ' (C)' : player.isViceCaptain ? ' (V)' : ''}</span>
+            <span class="player-name"><span class="position-badge">${posLetter}</span>${player.name}${player.isCaptain ? ' (C)' : player.isViceCaptain ? ' (V)' : ''} ${loadingIndicator}</span>
             <span class="player-team">${player.team}</span>
             <span class="player-points">${player.points}</span>
         `;
@@ -526,8 +547,15 @@ function createTeamGrid(team) {
         const positionMap = {'GKP': 'G', 'DEF': 'D', 'MID': 'M', 'FWD': 'F'};
         const posLetter = positionMap[player.playerPosition] || '';
         
+        let loadingIndicator = '';
+        if (player.bonusPending) {
+            loadingIndicator = '<span class="loading-indicator"><span class="bonus-pending">•</span></span>';
+        } else if (player.gameInProgress && !player.playerDone) {
+            loadingIndicator = '<span class="loading-indicator"><span class="loading-dots">•</span><span class="loading-dots">•</span><span class="loading-dots">•</span></span>';
+        }
+        
         playerDiv.innerHTML = `
-            <span class="player-name"><span class="position-badge">${posLetter}</span>${player.name}</span>
+            <span class="player-name"><span class="position-badge">${posLetter}</span>${player.name} ${loadingIndicator}</span>
             <span class="player-team">${player.team}</span>
             <span class="player-points">${player.points}</span>
         `;
