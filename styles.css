@@ -245,7 +245,7 @@ body {
 .loading-dots {
     display: inline-block;
     margin: 0 1px;
-    font-size: 12px;
+    font-size: 9px;
     color: #888;
     animation: loading-dots 1.4s infinite ease-in-out both;
 }
@@ -271,7 +271,7 @@ body {
 
 .bonus-pending {
     display: inline-block;
-    font-size: 12px;
+    font-size: 9px;
     color: #888;
     animation: bonus-pending 1.4s infinite ease-in-out;
 }
