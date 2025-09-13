@@ -497,7 +497,7 @@ function createTeamGrid(team) {
         if (player.bonusPending) {
             loadingIndicator = '<span class="loading-indicator"><span style="color: #888;">•</span></span>';
         } else if (player.gameInProgress && !player.playerDone) {
-            loadingIndicator = '<span class="loading-indicator"><span class="loading-dots">⬤</span></span>';
+            loadingIndicator = '<span class="loading-indicator"><span class="loading-dots">⬤</span><span class="loading-dots">⬤</span><span class="loading-dots">⬤</span></span>';
         }
         
         const displayPoints = !player.gameStarted ? '' : 
@@ -555,7 +555,7 @@ function createTeamGrid(team) {
         if (player.bonusPending) {
             loadingIndicator = '<span class="loading-indicator"><span style="color: #888;">•</span></span>';
         } else if (player.gameInProgress && !player.playerDone) {
-            loadingIndicator = '<span class="loading-indicator"><span class="loading-dots">⬤</span></span>';
+            loadingIndicator = '<span class="loading-indicator"><span class="loading-dots">⬤</span><span class="loading-dots">⬤</span><span class="loading-dots">⬤</span></span>';
         }
         
         const displayPoints = !player.gameStarted ? '' : 
