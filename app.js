@@ -497,11 +497,12 @@ function createTeamGrid(team) {
         if (player.bonusPending) {
             loadingIndicator = '<span class="loading-indicator"><span style="color: #888;">•</span></span>';
         } else if (player.gameInProgress && !player.playerDone) {
-            loadingIndicator = '<span class="loading-indicator"><span class="loading-dots">⬤</span><span class="loading-dots">⬤</span><span class="loading-dots">⬤</span></span>';
+            loadingIndicator = '<span class="loading-indicator"><span class="loading-dots">⬤</span></span>';
         }
         
         const displayPoints = !player.gameStarted ? '' : 
-                              (player.didntPlay ? '-' : player.points);
+                              (player.didntPlay ? '-' : 
+                               (player.gameInProgress && player.minutes === 0) ? '' : player.points);
         
         playerDiv.innerHTML = `
             <span class="player-name"><span class="position-badge">${posLetter}</span>${player.name}${player.isCaptain ? ' (C)' : player.isViceCaptain ? ' (V)' : ''} ${loadingIndicator}</span>
@@ -555,11 +556,12 @@ function createTeamGrid(team) {
         if (player.bonusPending) {
             loadingIndicator = '<span class="loading-indicator"><span style="color: #888;">•</span></span>';
         } else if (player.gameInProgress && !player.playerDone) {
-            loadingIndicator = '<span class="loading-indicator"><span class="loading-dots">⬤</span><span class="loading-dots">⬤</span><span class="loading-dots">⬤</span></span>';
+            loadingIndicator = '<span class="loading-indicator"><span class="loading-dots">⬤</span></span>';
         }
         
         const displayPoints = !player.gameStarted ? '' : 
-                              (player.didntPlay ? '-' : player.points);
+                              (player.didntPlay ? '-' : 
+                               (player.gameInProgress && player.minutes === 0) ? '' : player.points);
         
         playerDiv.innerHTML = `
             <span class="player-name"><span class="position-badge">${posLetter}</span>${player.name} ${loadingIndicator}</span>
