@@ -2,7 +2,7 @@
 // Based on FPL H2H Live but adapted for classic league format
 
 const FPL_BASE_URL = 'https://fantasy.premierleague.com/api';
-const PROXY_URL = 'https://cors-anywhere.herokuapp.com/';
+const PROXY_URL = 'https://corsproxy.io/?';
 
 // Hardcoded Normal League
 const LEAGUE_ID = 1549023;
@@ -40,7 +40,7 @@ function stopLoadingAnimation() {
 }
 
 async function fetchWithProxy(url) {
-    const response = await fetch(PROXY_URL + url);
+    const response = await fetch(PROXY_URL + encodeURIComponent(url));
     if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
     }
