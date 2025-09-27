@@ -61,8 +61,63 @@ body {
 }
 
 /* Match Container */
-.matches-container {
+.matches-container, .league-container {
     padding: 4px;
+}
+
+/* League-specific styles */
+.team-container {
+    background: white;
+    border-radius: 6px;
+    margin-bottom: 12px;
+    overflow: hidden;
+}
+
+.team-header {
+    background: #37003c;
+    color: white;
+    padding: 8px 12px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.team-info {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.live-rank {
+    font-weight: bold;
+    font-size: 14px;
+}
+
+.team-name {
+    font-weight: bold;
+    font-size: 12px;
+}
+
+.manager-name {
+    font-size: 10px;
+    opacity: 0.8;
+}
+
+.team-points {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 2px;
+}
+
+.live-points {
+    font-weight: bold;
+    font-size: 16px;
+}
+
+.gw-points {
+    font-size: 10px;
+    opacity: 0.8;
 }
 
 

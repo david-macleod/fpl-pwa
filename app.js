@@ -203,8 +203,8 @@ async function fetchAllTeamDetails() {
                         else if (hasRedCard) {
                             playerDone = true;
                         }
-                        // 4. Game in progress and player was subbed off (played but less than game minutes - 5)
-                        else if (playerMinutes > 0 && playerMinutes < gameMinutes - 5) {
+                        // 4. Game in progress and player was subbed off (started but played less than game minutes - 5)
+                        else if (playerMinutes > 0 && playerMinutes < gameMinutes - 5 && liveStats.starts > 0) {
                             playerDone = true;
                         }
                     }
