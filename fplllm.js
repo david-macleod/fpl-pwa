@@ -1,6 +1,4 @@
-// FPLLLM - FPL Normal League Live Tracker
-// Based on FPL H2H Live but adapted for classic league format
-
+// FPLLLM - FPL Normal League Live Tracker adapted to look like H2H
 const FPL_BASE_URL = 'https://fantasy.premierleague.com/api';
 const PROXY_URL = 'https://corsproxy.io/?';
 
@@ -11,14 +9,15 @@ let currentGW = null;
 let gameweekData = null;
 let fixturesData = {};
 let liveData = null;
-let leagueStandings = [];
+let teamsData = {};
+let fakeMatches = [];
 
 // DOM elements
+const matchesContainer = document.getElementById('matchesContainer');
 const loadingDiv = document.getElementById('loading');
 const errorDiv = document.getElementById('error');
-const leagueContainer = document.getElementById('leagueContainer');
 const gwInfoSpan = document.getElementById('gwInfo');
-const refreshButton = document.getElementById('refresh');
+const refreshBtn = document.getElementById('refresh');
 
 // Add loading states with dots animation
 let loadingDotsInterval;
@@ -47,7 +46,30 @@ async function fetchWithProxy(url) {
     return response.json();
 }
 
+function showLoading() {
+    startLoadingAnimation();
+    loadingDiv.classList.remove('hidden');
+    errorDiv.classList.add('hidden');
+    matchesContainer.classList.add('hidden');
+}
+
+function hideLoading() {
+    stopLoadingAnimation();
+    loadingDiv.classList.add('hidden');
+}
+
+function showError(message) {
+    stopLoadingAnimation();
+    loadingDiv.classList.add('hidden');
+    errorDiv.textContent = message;
+    errorDiv.classList.remove('hidden');
+    matchesContainer.classList.add('hidden');
+}
+
 async function loadData() {
+    refreshBtn.disabled = true;
+    refreshBtn.textContent = '⟳';
+    
     try {
         showLoading();
         
@@ -58,7 +80,7 @@ async function loadData() {
         
         gwInfoSpan.textContent = `GW${currentGW}`;
         
-        // Get fixtures for current gameweek
+        // Get fixtures for current gameweek  
         const fixturesResponse = await fetchWithProxy(`${FPL_BASE_URL}/fixtures/?event=${currentGW}`);
         
         // Create lookup for team fixtures
@@ -84,145 +106,169 @@ async function loadData() {
         
         // Get league standings
         const leagueData = await fetchWithProxy(`${FPL_BASE_URL}/leagues-classic/${LEAGUE_ID}/standings/`);
-        leagueStandings = leagueData.standings.results;
+        const standings = leagueData.standings.results;
+        
+        // Create fake matches from teams
+        fakeMatches = [];
+        teamsData = {};
         
         // Process each team
-        await processTeams(bootstrapData);
+        const teamPromises = standings.map(async (standing, index) => {
+            const teamId = standing.entry;
+            
+            try {
+                const teamData = await fetchWithProxy(`${FPL_BASE_URL}/entry/${teamId}/`);
+                const pickData = await fetchWithProxy(`${FPL_BASE_URL}/entry/${teamId}/event/${currentGW}/picks/`);
+                
+                // Process players
+                const players = pickData.picks.map(pick => {
+                    const playerInfo = bootstrapData.elements.find(p => p.id === pick.element);
+                    const liveStats = liveData.elements[pick.element - 1]?.stats || {};
+                    
+                    // Get fixture info for player's team
+                    const fixtureInfo = playerInfo?.team ? fixturesData[playerInfo.team] : null;
+                    
+                    // Determine if player is "done" 
+                    let playerDone = false;
+                    let didntPlay = false;
+                    let gameInProgress = false;
+                    let bonusPending = false;
+                    
+                    if (fixtureInfo) {
+                        const gameMinutes = fixtureInfo.minutes || 0;
+                        const playerMinutes = liveStats.minutes || 0;
+                        const hasRedCard = liveStats.red_cards > 0;
+                        
+                        gameInProgress = fixtureInfo.started && !fixtureInfo.finished_provisional;
+                        bonusPending = fixtureInfo.finished_provisional && !fixtureInfo.finished && playerMinutes > 0;
+                        
+                        if (fixtureInfo.finished) {
+                            playerDone = true;
+                            didntPlay = playerMinutes === 0;
+                        }
+                        else if (fixtureInfo.finished_provisional) {
+                            playerDone = true;
+                            didntPlay = playerMinutes === 0;
+                        }
+                        else if (hasRedCard) {
+                            playerDone = true;
+                        }
+                        else if (playerMinutes > 0 && playerMinutes < gameMinutes - 5 && liveStats.starts > 0) {
+                            playerDone = true;
+                        }
+                    }
+                    
+                    const opponentTeam = fixtureInfo?.opponent || '';
+                    const displayTeam = fixtureInfo?.isHome ? opponentTeam : opponentTeam.toLowerCase();
+                    
+                    // Generate event emojis
+                    let eventEmojis = '';
+                    if (liveStats.goals_scored > 0) {
+                        eventEmojis += '⚽️'.repeat(liveStats.goals_scored);
+                    }
+                    if (liveStats.assists > 0) {
+                        eventEmojis += '👟'.repeat(liveStats.assists);
+                    }
+                    if (liveStats.yellow_cards > 0) {
+                        eventEmojis += '🟨'.repeat(liveStats.yellow_cards);
+                    }
+                    if (liveStats.red_cards > 0) {
+                        eventEmojis += '🟥'.repeat(liveStats.red_cards);
+                    }
+                    if (liveStats.bonus > 0) {
+                        eventEmojis += '🎁'.repeat(liveStats.bonus);
+                    }
+                    
+                    return {
+                        position: pick.position,
+                        element: pick.element,
+                        is_captain: pick.is_captain,
+                        is_vice_captain: pick.is_vice_captain,
+                        multiplier: pick.multiplier,
+                        playerName: playerInfo?.web_name || 'Unknown',
+                        playerPosition: getPositionName(playerInfo?.element_type),
+                        teamId: playerInfo?.team,
+                        points: liveStats.total_points || 0,
+                        eventEmojis,
+                        playerDone,
+                        didntPlay,
+                        gameInProgress,
+                        bonusPending,
+                        displayTeam,
+                        fixtureStatus: getFixtureStatus(fixtureInfo)
+                    };
+                });
+                
+                // Sort into XI and bench
+                const xi = players.filter(p => p.position <= 11).sort((a, b) => a.position - b.position);
+                const bench = players.filter(p => p.position > 11).sort((a, b) => a.position - b.position);
+                
+                // Calculate auto subs
+                const autoSubs = calculateAutoSubs(xi, bench);
+                
+                // Mark bench players who will come on
+                bench.forEach(player => {
+                    player.willComeOn = autoSubs.includes(player.position);
+                });
+                
+                // Calculate total points
+                let livePoints = 0;
+                xi.forEach(player => {
+                    if (!autoSubs.some(pos => bench.find(b => b.position === pos && xi.find(x => x.playerDone && x.didntPlay)))) {
+                        livePoints += player.points * player.multiplier;
+                    }
+                });
+                bench.forEach(player => {
+                    if (autoSubs.includes(player.position)) {
+                        livePoints += player.points;
+                    }
+                });
+                
+                teamsData[teamId] = {
+                    id: teamId,
+                    name: standing.entry_name,
+                    manager: standing.player_name,
+                    xi: xi,
+                    bench: bench,
+                    livePoints: livePoints,
+                    transfersCost: 0
+                };
+                
+            } catch (error) {
+                console.error(`Error processing team ${standing.entry_name}:`, error);
+                teamsData[teamId] = {
+                    id: teamId,
+                    name: standing.entry_name,
+                    manager: standing.player_name,
+                    xi: [],
+                    bench: [],
+                    livePoints: 0,
+                    transfersCost: 0
+                };
+            }
+        });
         
+        await Promise.all(teamPromises);
+        
+        // Create fake matches (each team vs dummy opponent)
+        const teamIds = Object.keys(teamsData);
+        teamIds.forEach(teamId => {
+            fakeMatches.push({
+                team1: teamId,
+                team2: 'dummy'  // We'll handle this in display
+            });
+        });
+        
+        displayMatches();
         hideLoading();
         
     } catch (error) {
         console.error('Error loading data:', error);
         showError(`Failed to load data: ${error.message}`);
+    } finally {
+        refreshBtn.textContent = '↻';
+        refreshBtn.disabled = false;
     }
-}
-
-async function processTeams(bootstrapData) {
-    const teamsData = [];
-    
-    for (const standing of leagueStandings) {
-        try {
-            // Get team data
-            const teamData = await fetchWithProxy(`${FPL_BASE_URL}/entry/${standing.entry}/`);
-            const pickData = await fetchWithProxy(`${FPL_BASE_URL}/entry/${standing.entry}/event/${currentGW}/picks/`);
-            
-            // Process players
-            const players = pickData.picks.map(pick => {
-                const playerInfo = bootstrapData.elements.find(p => p.id === pick.element);
-                const liveStats = liveData.elements[pick.element - 1]?.stats || {};
-                
-                // Get fixture info for player's team
-                const fixtureInfo = playerInfo?.team ? fixturesData[playerInfo.team] : null;
-                
-                // Determine if player is "done" with more accurate logic
-                let playerDone = false;
-                let didntPlay = false;
-                let gameInProgress = false;
-                let bonusPending = false;
-                
-                if (fixtureInfo) {
-                    const gameMinutes = fixtureInfo.minutes || 0;
-                    const playerMinutes = liveStats.minutes || 0;
-                    const hasRedCard = liveStats.red_cards > 0;
-                    
-                    // Check if game is in progress (started but whistle not yet blown)
-                    gameInProgress = fixtureInfo.started && !fixtureInfo.finished_provisional;
-                    
-                    // Check if whistle blown but bonus points not yet awarded
-                    bonusPending = fixtureInfo.finished_provisional && !fixtureInfo.finished && playerMinutes > 0;
-                    
-                    // Player is done if:
-                    // 1. Game is fully finished (with bonus points awarded)
-                    if (fixtureInfo.finished) {
-                        playerDone = true;
-                        didntPlay = playerMinutes === 0;
-                    }
-                    // 2. Game finished (whistle blown) - all players are done regardless of bonus status
-                    else if (fixtureInfo.finished_provisional) {
-                        playerDone = true;
-                        didntPlay = playerMinutes === 0;
-                    }
-                    // 3. Game in progress and player got a red card
-                    else if (hasRedCard) {
-                        playerDone = true;
-                    }
-                    // 4. Game in progress and player was subbed off (started but played less than game minutes - 5)
-                    else if (playerMinutes > 0 && playerMinutes < gameMinutes - 5 && liveStats.starts > 0) {
-                        playerDone = true;
-                    }
-                }
-                
-                const opponentTeam = fixtureInfo?.opponent || '';
-                const displayTeam = fixtureInfo?.isHome ? opponentTeam : opponentTeam.toLowerCase();
-                
-                // Generate event emojis based on stats
-                let eventEmojis = '';
-                if (liveStats.goals_scored > 0) {
-                    eventEmojis += '⚽️'.repeat(liveStats.goals_scored);
-                }
-                if (liveStats.assists > 0) {
-                    eventEmojis += '👟'.repeat(liveStats.assists);
-                }
-                if (liveStats.yellow_cards > 0) {
-                    eventEmojis += '🟨'.repeat(liveStats.yellow_cards);
-                }
-                if (liveStats.red_cards > 0) {
-                    eventEmojis += '🟥'.repeat(liveStats.red_cards);
-                }
-                if (liveStats.bonus > 0) {
-                    eventEmojis += '🎁'.repeat(liveStats.bonus);
-                }
-                
-                return {
-                    position: pick.position,
-                    element: pick.element,
-                    is_captain: pick.is_captain,
-                    is_vice_captain: pick.is_vice_captain,
-                    multiplier: pick.multiplier,
-                    playerName: playerInfo?.web_name || 'Unknown',
-                    playerPosition: getPositionName(playerInfo?.element_type),
-                    teamId: playerInfo?.team,
-                    points: liveStats.total_points || 0,
-                    eventEmojis,
-                    playerDone,
-                    didntPlay,
-                    gameInProgress,
-                    bonusPending,
-                    displayTeam,
-                    fixtureStatus: getFixtureStatus(fixtureInfo)
-                };
-            });
-            
-            // Sort into XI and bench
-            const xi = players.filter(p => p.position <= 11).sort((a, b) => a.position - b.position);
-            const bench = players.filter(p => p.position > 11).sort((a, b) => a.position - b.position);
-            
-            // Calculate auto subs
-            const autoSubs = calculateAutoSubs(xi, bench);
-            
-            // Mark bench players who will come on
-            bench.forEach(player => {
-                player.willComeOn = autoSubs.includes(player.position);
-            });
-            
-            // Calculate total points including auto subs
-            const totalPoints = calculateTotalPoints(xi, bench, autoSubs);
-            
-            teamsData.push({
-                standing,
-                teamData,
-                xi,
-                bench,
-                autoSubs,
-                totalPoints
-            });
-            
-        } catch (error) {
-            console.error(`Error processing team ${standing.entry_name}:`, error);
-        }
-    }
-    
-    displayLeague(teamsData);
 }
 
 function getPositionName(elementType) {
@@ -239,7 +285,6 @@ function getFixtureStatus(fixtureInfo) {
 }
 
 function calculateAutoSubs(xi, bench) {
-    // Auto-substitution logic (same as H2H version)
     const autoSubs = [];
     
     const countPositions = (players) => {
@@ -254,28 +299,22 @@ function calculateAutoSubs(xi, bench) {
         return gk >= 1 && def >= 3 && fwd >= 1 && (gk + def + mid + fwd) <= 11;
     };
     
-    // Find players who need replacing (done but didn't play)
     const needsReplacing = xi.filter(p => p.playerDone && p.didntPlay);
     
     if (needsReplacing.length === 0) return autoSubs;
     
-    // Process each bench player in order
     for (const benchPlayer of bench) {
-        // Skip if bench player didn't play
         if (benchPlayer.playerDone && benchPlayer.didntPlay) continue;
         
         for (const xiPlayer of needsReplacing) {
             if (autoSubs.includes(xiPlayer.position)) continue;
             
-            // Check if this substitution would create a valid formation
             const currentCounts = countPositions(xi.filter(p => !autoSubs.includes(p.position)));
             
-            // Remove the XI player being substituted
             if (currentCounts[xiPlayer.playerPosition] > 0) {
                 currentCounts[xiPlayer.playerPosition]--;
             }
             
-            // Add the bench player
             currentCounts[benchPlayer.playerPosition] = (currentCounts[benchPlayer.playerPosition] || 0) + 1;
             
             const { GKP = 0, DEF = 0, MID = 0, FWD = 0 } = currentCounts;
@@ -286,7 +325,6 @@ function calculateAutoSubs(xi, bench) {
             }
         }
         
-        // Stop if we've made a substitution with this bench player
         if (autoSubs.includes(benchPlayer.position)) {
             break;
         }
@@ -295,156 +333,157 @@ function calculateAutoSubs(xi, bench) {
     return autoSubs;
 }
 
-function calculateTotalPoints(xi, bench, autoSubs) {
-    let total = 0;
+function displayMatches() {
+    matchesContainer.innerHTML = '';
     
-    // Add XI points (excluding those being subbed out)
-    xi.forEach(player => {
-        if (!autoSubs.some(pos => bench.find(b => b.position === pos && xi.find(x => x.playerDone && x.didntPlay)))) {
-            total += player.points * player.multiplier;
-        }
+    // Sort teams by live points
+    const sortedMatches = [...fakeMatches].sort((a, b) => {
+        const teamA = teamsData[a.team1];
+        const teamB = teamsData[b.team1];
+        return (teamB?.livePoints || 0) - (teamA?.livePoints || 0);
     });
     
-    // Add bench points for auto subs
-    bench.forEach(player => {
-        if (autoSubs.includes(player.position)) {
-            total += player.points;
-        }
-    });
-    
-    return total;
-}
-
-function displayLeague(teamsData) {
-    leagueContainer.innerHTML = '';
-    
-    // Sort teams by total points (descending)
-    const sortedTeams = [...teamsData].sort((a, b) => b.totalPoints - a.totalPoints);
-    
-    sortedTeams.forEach((team, index) => {
-        const teamDiv = document.createElement('div');
-        teamDiv.className = 'team-container';
+    sortedMatches.forEach((match, index) => {
+        const team = teamsData[match.team1];
+        if (!team) return;
         
-        // Team header
+        const matchDiv = document.createElement('div');
+        matchDiv.className = 'match-container';
+        
+        // Create match header (just show the team as if it's vs empty opponent)
         const headerDiv = document.createElement('div');
-        headerDiv.className = 'team-header';
+        headerDiv.className = 'match-header';
         headerDiv.innerHTML = `
-            <div class="team-info">
-                <span class="live-rank">#${index + 1}</span>
-                <span class="team-name">${team.standing.entry_name}</span>
-                <span class="manager-name">${team.standing.player_name}</span>
+            <div class="team-header">
+                <div class="team-info">
+                    <span class="team-name">${team.name}</span>
+                    <span class="manager-name">${team.manager}</span>
+                </div>
+                <span class="score">${team.livePoints}</span>
             </div>
-            <div class="team-points">
-                <span class="live-points">${team.totalPoints}</span>
-                <span class="gw-points">GW: ${team.standing.event_total}</span>
+            <div class="team-header">
+                <div class="team-info">
+                    <span class="team-name">Rank #${index + 1}</span>
+                    <span class="manager-name">Live Position</span>
+                </div>
+                <span class="score">-</span>
             </div>
         `;
-        teamDiv.appendChild(headerDiv);
         
-        // Players grid
-        const gridDiv = document.createElement('div');
-        gridDiv.className = 'players-container';
+        // Create teams grid container
+        const teamsGridDiv = document.createElement('div');
+        teamsGridDiv.className = 'teams-grid';
         
-        // XI header
-        const xiHeader = document.createElement('div');
-        xiHeader.className = 'grid-header';
-        xiHeader.textContent = 'Starting XI';
-        gridDiv.appendChild(xiHeader);
+        // Team grid
+        const teamGridDiv = createTeamGrid(team);
+        teamsGridDiv.appendChild(teamGridDiv);
         
-        // XI players
-        const xiGrid = document.createElement('div');
-        xiGrid.className = 'players-grid';
+        // Empty separator and grid for consistency
+        const separatorDiv = document.createElement('div');
+        separatorDiv.className = 'grid-separator';
+        teamsGridDiv.appendChild(separatorDiv);
         
-        team.xi.forEach(player => {
-            const playerDiv = createPlayerDiv(player);
-            xiGrid.appendChild(playerDiv);
-        });
+        const emptyGridDiv = document.createElement('div');
+        emptyGridDiv.className = 'team-grid';
+        teamsGridDiv.appendChild(emptyGridDiv);
         
-        gridDiv.appendChild(xiGrid);
-        
-        // Bench header
-        const benchHeader = document.createElement('div');
-        benchHeader.className = 'grid-header bench-header';
-        benchHeader.textContent = 'Bench';
-        gridDiv.appendChild(benchHeader);
-        
-        // Bench players
-        const benchGrid = document.createElement('div');
-        benchGrid.className = 'players-grid bench-grid';
-        
-        team.bench.forEach(player => {
-            const playerDiv = createPlayerDiv(player);
-            playerDiv.className += ' bench-player';
-            
-            if (player.willComeOn) {
-                playerDiv.classList.add('will-come-on');
-            }
-            
-            if (player.points > 0 && !player.didntPlay) {
-                playerDiv.classList.add('bench-played');
-            }
-            
-            benchGrid.appendChild(playerDiv);
-        });
-        
-        gridDiv.appendChild(benchGrid);
-        teamDiv.appendChild(gridDiv);
-        leagueContainer.appendChild(teamDiv);
+        matchDiv.appendChild(headerDiv);
+        matchDiv.appendChild(teamsGridDiv);
+        matchesContainer.appendChild(matchDiv);
     });
     
-    leagueContainer.classList.remove('hidden');
+    matchesContainer.classList.remove('hidden');
 }
 
-function createPlayerDiv(player) {
-    const playerDiv = document.createElement('div');
-    playerDiv.className = 'player-row';
+function createTeamGrid(team) {
+    const gridDiv = document.createElement('div');
+    gridDiv.className = 'team-grid';
     
-    if (player.is_captain) playerDiv.classList.add('captain');
-    if (player.is_vice_captain) playerDiv.classList.add('vice-captain');
-    if (player.playerDone) playerDiv.classList.add('done');
-    if (player.gameInProgress) playerDiv.classList.add('in-progress');
-    if (player.bonusPending) playerDiv.classList.add('bonus-pending');
+    // XI header
+    const xiHeader = document.createElement('div');
+    xiHeader.className = 'grid-header';
+    xiHeader.textContent = 'Starting XI';
+    gridDiv.appendChild(xiHeader);
     
-    const captainBadge = player.is_captain ? ' (C)' : (player.is_vice_captain ? ' (V)' : '');
-    const multiplierText = player.multiplier > 1 ? ` x${player.multiplier}` : '';
-    const statusIcon = player.playerDone ? '✓' : (player.gameInProgress ? '▶' : '');
+    // XI players
+    const xiGrid = document.createElement('div');
+    xiGrid.className = 'players-grid';
     
-    playerDiv.innerHTML = `
-        <div class="player-info">
-            <span class="player-name">${player.playerName}${captainBadge}</span>
-            <span class="player-details">${player.playerPosition} ${player.displayTeam} ${player.fixtureStatus}</span>
-        </div>
-        <div class="player-stats">
-            <span class="player-events">${player.eventEmojis}</span>
-            <span class="player-points">${player.points}${multiplierText} ${statusIcon}</span>
-        </div>
-    `;
+    team.xi.forEach(player => {
+        const playerDiv = document.createElement('div');
+        playerDiv.className = 'player-row';
+        
+        if (player.is_captain) playerDiv.classList.add('captain');
+        if (player.is_vice_captain) playerDiv.classList.add('vice-captain');
+        if (player.playerDone) playerDiv.classList.add('done');
+        if (player.gameInProgress) playerDiv.classList.add('in-progress');
+        if (player.bonusPending) playerDiv.classList.add('bonus-pending');
+        
+        const captainBadge = player.is_captain ? ' (C)' : (player.is_vice_captain ? ' (V)' : '');
+        const multiplierText = player.multiplier > 1 ? ` x${player.multiplier}` : '';
+        const statusIcon = player.playerDone ? '✓' : (player.gameInProgress ? '▶' : '');
+        
+        playerDiv.innerHTML = `
+            <div class="player-info">
+                <span class="player-name">${player.playerName}${captainBadge}</span>
+                <span class="player-details">${player.playerPosition} ${player.displayTeam} ${player.fixtureStatus}</span>
+            </div>
+            <div class="player-stats">
+                <span class="player-events">${player.eventEmojis}</span>
+                <span class="player-points">${player.points}${multiplierText} ${statusIcon}</span>
+            </div>
+        `;
+        
+        xiGrid.appendChild(playerDiv);
+    });
     
-    return playerDiv;
-}
-
-function showLoading() {
-    startLoadingAnimation();
-    loadingDiv.classList.remove('hidden');
-    errorDiv.classList.add('hidden');
-    leagueContainer.classList.add('hidden');
-}
-
-function hideLoading() {
-    stopLoadingAnimation();
-    loadingDiv.classList.add('hidden');
-}
-
-function showError(message) {
-    stopLoadingAnimation();
-    loadingDiv.classList.add('hidden');
-    errorDiv.textContent = message;
-    errorDiv.classList.remove('hidden');
-    leagueContainer.classList.add('hidden');
+    gridDiv.appendChild(xiGrid);
+    
+    // Bench header
+    const benchHeader = document.createElement('div');
+    benchHeader.className = 'grid-header bench-header';
+    benchHeader.textContent = 'Bench';
+    gridDiv.appendChild(benchHeader);
+    
+    // Bench players
+    const benchGrid = document.createElement('div');
+    benchGrid.className = 'players-grid bench-grid';
+    
+    team.bench.forEach(player => {
+        const playerDiv = document.createElement('div');
+        playerDiv.className = 'player-row bench-player';
+        
+        if (player.willComeOn) {
+            playerDiv.classList.add('will-come-on');
+        }
+        
+        if (player.points > 0 && !player.didntPlay) {
+            playerDiv.classList.add('bench-played');
+        }
+        
+        const statusIcon = player.playerDone ? '✓' : (player.gameInProgress ? '▶' : '');
+        
+        playerDiv.innerHTML = `
+            <div class="player-info">
+                <span class="player-name">${player.playerName}</span>
+                <span class="player-details">${player.playerPosition} ${player.displayTeam} ${player.fixtureStatus}</span>
+            </div>
+            <div class="player-stats">
+                <span class="player-events">${player.eventEmojis}</span>
+                <span class="player-points">${player.points} ${statusIcon}</span>
+            </div>
+        `;
+        
+        benchGrid.appendChild(playerDiv);
+    });
+    
+    gridDiv.appendChild(benchGrid);
+    
+    return gridDiv;
 }
 
 // Event listeners
-refreshButton.addEventListener('click', loadData);
+refreshBtn.addEventListener('click', loadData);
 
 // Auto-refresh every 30 seconds
 setInterval(loadData, 30000);
