@@ -1,4 +1,4 @@
-const CACHE_NAME = 'fpl-tracker-v1';
+const CACHE_NAME = 'fpl-tracker-v2';
 const urlsToCache = [
     '/',
     '/index.html',
@@ -42,19 +42,27 @@ self.addEventListener('fetch', event => {
         return;
     }
     
+    // Skip chrome-extension and other non-http schemes
+    if (!event.request.url.startsWith('http')) {
+        return;
+    }
+    
     // Handle API requests differently (network first)
     if (event.request.url.includes('fantasy.premierleague.com') || 
         event.request.url.includes('corsproxy.io')) {
         event.respondWith(
             fetch(event.request)
                 .then(response => {
-                    // Clone the response before caching
-                    const responseToCache = response.clone();
-                    
-                    caches.open(CACHE_NAME)
-                        .then(cache => {
-                            cache.put(event.request, responseToCache);
-                        });
+                    // Only cache valid responses
+                    if (response && response.status === 200) {
+                        const responseToCache = response.clone();
+                        
+                        caches.open(CACHE_NAME)
+                            .then(cache => {
+                                cache.put(event.request, responseToCache);
+                            })
+                            .catch(err => console.log('Cache put failed:', err));
+                    }
                     
                     return response;
                 })
@@ -84,16 +92,28 @@ self.addEventListener('fetch', event => {
                         caches.open(CACHE_NAME)
                             .then(cache => {
                                 cache.put(event.request, responseToCache);
-                            });
+                            })
+                            .catch(err => console.log('Cache put failed:', err));
                         
                         return response;
+                    })
+                    .catch(() => {
+                        // Return a valid response for missing files
+                        return new Response('File not found', { 
+                            status: 404, 
+                            statusText: 'Not Found' 
+                        });
                     });
             })
             .catch(() => {
-                // If both cache and network fail, show offline page
+                // If both cache and network fail, show offline page or 404
                 if (event.request.destination === 'document') {
                     return caches.match('/index.html');
                 }
+                return new Response('File not found', { 
+                    status: 404, 
+                    statusText: 'Not Found' 
+                });
             })
     );
 });

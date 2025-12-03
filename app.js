@@ -128,15 +128,43 @@ async function fetchLeagueData() {
 
 async function fetchH2HMatches() {
     try {
-        const matchesData = await fetchWithProxy(`${FPL_BASE_URL}/leagues-h2h-matches/league/${H2H_LEAGUE_ID}/`);
+        let allMatches = [];
+        let page = 1;
+        let hasMorePages = true;
+        
+        // Fetch all pages of H2H matches
+        while (hasMorePages) {
+            const matchesData = await fetchWithProxy(`${FPL_BASE_URL}/leagues-h2h-matches/league/${H2H_LEAGUE_ID}/?page=${page}`);
+            
+            if (matchesData.results && matchesData.results.length > 0) {
+                allMatches = allMatches.concat(matchesData.results);
+                page++;
+                
+                // Stop if we get less than 50 results (typical page size)
+                if (matchesData.results.length < 50) {
+                    hasMorePages = false;
+                }
+            } else {
+                hasMorePages = false;
+            }
+            
+            // Safety break after 10 pages
+            if (page > 10) {
+                hasMorePages = false;
+            }
+        }
+        
+        console.log(`Fetched ${allMatches.length} total matches from ${page - 1} pages`);
         
         // Filter for current gameweek matches
-        h2hMatches = matchesData.results
+        h2hMatches = allMatches
             .filter(m => m.event === currentGameweek)
             .map(match => ({
                 team1: match.entry_1_entry,
                 team2: match.entry_2_entry
             }));
+            
+        console.log(`Found ${h2hMatches.length} matches for GW ${currentGameweek}`);
             
     } catch (error) {
         console.error('Error fetching H2H matches:', error);
