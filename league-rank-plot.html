@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#37003c">
+    <title>FPLLLM Rank Progression</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #37003c 0%, #04f5ff 100%);
+            min-height: 100vh;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .container {
+            max-width: 1400px;
+            width: 100%;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+            overflow: hidden;
+        }
+
+        .header {
+            background: #37003c;
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            font-weight: 700;
+        }
+
+        .header p {
+            font-size: 1.2em;
+            opacity: 0.9;
+        }
+
+        .plot-container {
+            padding: 40px;
+            text-align: center;
+        }
+
+        .plot-container img {
+            max-width: 100%;
+            height: auto;
+            border-radius: 8px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+        }
+
+        .stats-container {
+            padding: 40px;
+            background: #f8f9fa;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 20px;
+        }
+
+        .team-card {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            border-left: 4px solid;
+        }
+
+        .team-card.red { border-left-color: #e74c3c; }
+        .team-card.blue { border-left-color: #3498db; }
+        .team-card.green { border-left-color: #2ecc71; }
+        .team-card.orange { border-left-color: #f39c12; }
+
+        .team-card h3 {
+            font-size: 1.3em;
+            margin-bottom: 5px;
+            color: #37003c;
+        }
+
+        .team-card .manager {
+            font-size: 0.9em;
+            color: #666;
+            margin-bottom: 15px;
+        }
+
+        .team-card .stat {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            border-bottom: 1px solid #eee;
+        }
+
+        .team-card .stat:last-child {
+            border-bottom: none;
+        }
+
+        .team-card .stat-label {
+            color: #666;
+            font-size: 0.9em;
+        }
+
+        .team-card .stat-value {
+            font-weight: 600;
+            color: #37003c;
+        }
+
+        .stat-value.positive {
+            color: #2ecc71;
+        }
+
+        .footer {
+            padding: 20px;
+            text-align: center;
+            background: #37003c;
+            color: white;
+        }
+
+        .refresh-btn {
+            background: #04f5ff;
+            color: #37003c;
+            border: none;
+            padding: 12px 30px;
+            font-size: 1em;
+            font-weight: 600;
+            border-radius: 6px;
+            cursor: pointer;
+            margin: 20px;
+            transition: all 0.3s;
+        }
+
+        .refresh-btn:hover {
+            background: #00d4e0;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(4, 245, 255, 0.3);
+        }
+
+        @media (max-width: 768px) {
+            .header h1 {
+                font-size: 1.8em;
+            }
+
+            .plot-container {
+                padding: 20px;
+            }
+
+            .stats-container {
+                padding: 20px;
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>FPLLLM League Rank Progression</h1>
+            <p>Overall Rank by Gameweek - Season 2025/26</p>
+        </div>
+
+        <div class="plot-container">
+            <img src="league_rank_progression.png" alt="FPLLLM Rank Progression Chart">
+            <button class="refresh-btn" onclick="location.reload()">↻ Refresh Data</button>
+        </div>
+
+        <div class="stats-container">
+            <div class="team-card red">
+                <h3>Tractorboys</h3>
+                <div class="manager">Lawrence Atkins</div>
+                <div class="stat">
+                    <span class="stat-label">Current Rank</span>
+                    <span class="stat-value">1,743,595</span>
+                </div>
+                <div class="stat">
+                    <span class="stat-label">Best Rank</span>
+                    <span class="stat-value">1,509,112 (GW16)</span>
+                </div>
+                <div class="stat">
+                    <span class="stat-label">Change from GW1</span>
+                    <span class="stat-value positive">↑ 4,616,606</span>
+                </div>
+            </div>
+
+            <div class="team-card blue">
+                <h3>Fellaini's 11½</h3>
+                <div class="manager">David MacLeod</div>
+                <div class="stat">
+                    <span class="stat-label">Current Rank</span>
+                    <span class="stat-value">2,114,066</span>
+                </div>
+                <div class="stat">
+                    <span class="stat-label">Best Rank</span>
+                    <span class="stat-value">2,114,066 (GW17)</span>
+                </div>
+                <div class="stat">
+                    <span class="stat-label">Change from GW1</span>
+                    <span class="stat-value positive">↑ 997,790</span>
+                </div>
+            </div>
+
+            <div class="team-card green">
+                <h3>Generational Talents</h3>
+                <div class="manager">Claude-ai Ranieri</div>
+                <div class="stat">
+                    <span class="stat-label">Current Rank</span>
+                    <span class="stat-value">2,278,440</span>
+                </div>
+                <div class="stat">
+                    <span class="stat-label">Best Rank</span>
+                    <span class="stat-value">879,584 (GW15) 🚀</span>
+                </div>
+                <div class="stat">
+                    <span class="stat-label">Change from GW1</span>
+                    <span class="stat-value positive">↑ 1,375,756</span>
+                </div>
+            </div>
+
+            <div class="team-card orange">
+                <h3>Gemini-clichy</h3>
+                <div class="manager">The Special One-Shot Learner</div>
+                <div class="stat">
+                    <span class="stat-label">Current Rank</span>
+                    <span class="stat-value">6,097,810</span>
+                </div>
+                <div class="stat">
+                    <span class="stat-label">Best Rank</span>
+                    <span class="stat-value">6,097,810 (GW17)</span>
+                </div>
+                <div class="stat">
+                    <span class="stat-label">Change from GW1</span>
+                    <span class="stat-value positive">↑ 3,880,812</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="footer">
+            <p>Data from Fantasy Premier League API • League ID: 1549023</p>
+            <p style="margin-top: 10px; font-size: 0.9em; opacity: 0.8;">
+                <a href="https://fantasy.premierleague.com/leagues/1549023/standings/c"
+                   style="color: #04f5ff; text-decoration: none;">
+                    View League on FPL →
+                </a>
+            </p>
+        </div>
+    </div>
+
+    <script>
+        // Auto-refresh every 5 minutes to get latest data
+        // setTimeout(() => location.reload(), 5 * 60 * 1000);
+    </script>
+</body>
+</html>
