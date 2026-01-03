@@ -1,6 +1,20 @@
 // FPL API endpoints
-const PROXY_URL = 'https://api.allorigins.win/raw?url=';
 const FPL_BASE_URL = 'https://fantasy.premierleague.com/api';
+
+// Multiple CORS proxies for reliability - will try each in order until one works
+const CORS_PROXIES = [
+    {
+        url: 'https://api.allorigins.win/raw?url=',
+        process: (response) => response.json()
+    },
+    {
+        url: 'https://api.allorigins.win/get?url=',
+        process: async (response) => {
+            const data = await response.json();
+            return JSON.parse(data.contents);
+        }
+    }
+];
 
 // Hardcoded H2H League
 const H2H_LEAGUE_ID = 1017641;
@@ -36,14 +50,35 @@ window.addEventListener('load', () => {
 });
 
 async function fetchWithProxy(url) {
-    try {
-        const response = await fetch(PROXY_URL + url);
-        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-        return await response.json();
-    } catch (error) {
-        console.error('Fetch error:', error);
-        throw error;
+    let lastError;
+
+    // Try each proxy in order
+    for (let i = 0; i < CORS_PROXIES.length; i++) {
+        const proxy = CORS_PROXIES[i];
+        try {
+            console.log(`Trying proxy ${i + 1}/${CORS_PROXIES.length}: ${proxy.url}`);
+            const response = await fetch(proxy.url + url, {
+                signal: AbortSignal.timeout(10000) // 10 second timeout
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+
+            const data = await proxy.process(response);
+            console.log(`✓ Proxy ${i + 1} succeeded`);
+            return data;
+
+        } catch (error) {
+            console.warn(`✗ Proxy ${i + 1} failed:`, error.message);
+            lastError = error;
+            // Continue to next proxy
+        }
     }
+
+    // All proxies failed
+    console.error('All proxies failed. Last error:', lastError);
+    throw new Error(`Failed to fetch data: ${lastError.message}`);
 }
 
 async function fetchLeagueData() {
