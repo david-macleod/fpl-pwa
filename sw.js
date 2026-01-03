@@ -1,4 +1,4 @@
-const CACHE_NAME = 'fpl-tracker-v2';
+const CACHE_NAME = 'fpl-tracker-v3';
 const urlsToCache = [
     '/',
     '/index.html',
@@ -48,8 +48,8 @@ self.addEventListener('fetch', event => {
     }
     
     // Handle API requests differently (network first)
-    if (event.request.url.includes('fantasy.premierleague.com') || 
-        event.request.url.includes('corsproxy.io')) {
+    if (event.request.url.includes('fantasy.premierleague.com') ||
+        event.request.url.includes('allorigins.win')) {
         event.respondWith(
             fetch(event.request)
                 .then(response => {

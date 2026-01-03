@@ -1,5 +1,5 @@
 // FPL API endpoints
-const PROXY_URL = 'https://corsproxy.io/?';
+const PROXY_URL = 'https://api.allorigins.win/raw?url=';
 const FPL_BASE_URL = 'https://fantasy.premierleague.com/api';
 
 // Hardcoded H2H League
@@ -37,7 +37,7 @@ window.addEventListener('load', () => {
 
 async function fetchWithProxy(url) {
     try {
-        const response = await fetch(PROXY_URL + encodeURIComponent(url));
+        const response = await fetch(PROXY_URL + url);
         if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
         return await response.json();
     } catch (error) {

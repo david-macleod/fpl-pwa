@@ -1,12 +1,12 @@
 // Quick script to fetch league data and get team IDs
-const PROXY_URL = 'https://corsproxy.io/?';
+const PROXY_URL = 'https://api.allorigins.win/raw?url=';
 const FPL_BASE_URL = 'https://fantasy.premierleague.com/api';
 const LEAGUE_ID = 1017641;
 
 async function fetchLeagueInfo() {
     try {
         // Get H2H league standings
-        const response = await fetch(PROXY_URL + encodeURIComponent(`${FPL_BASE_URL}/leagues-h2h/${LEAGUE_ID}/standings/`));
+        const response = await fetch(PROXY_URL + `${FPL_BASE_URL}/leagues-h2h/${LEAGUE_ID}/standings/`);
         const data = await response.json();
         
         console.log('League Name:', data.league.name);
@@ -27,7 +27,7 @@ async function fetchLeagueInfo() {
         console.log(JSON.stringify(teams.map(t => t.id)));
         
         // Get current H2H matches
-        const matchesResponse = await fetch(PROXY_URL + encodeURIComponent(`${FPL_BASE_URL}/leagues-h2h-matches/league/${LEAGUE_ID}/`));
+        const matchesResponse = await fetch(PROXY_URL + `${FPL_BASE_URL}/leagues-h2h-matches/league/${LEAGUE_ID}/`);
         const matchesData = await matchesResponse.json();
         
         console.log('\nCurrent gameweek H2H matches:');

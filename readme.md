@@ -44,7 +44,7 @@ A minimal, mobile-optimized Progressive Web App for tracking live Fantasy Premie
 
 ## CORS Proxy
 
-The app uses corsproxy.io to bypass CORS restrictions when calling the FPL API from the browser. For production use, consider setting up your own proxy server.
+The app uses api.allorigins.win to bypass CORS restrictions when calling the FPL API from the browser. For production use, consider setting up your own proxy server.
 
 ## Files
 

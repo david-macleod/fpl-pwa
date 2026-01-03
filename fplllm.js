@@ -1,6 +1,6 @@
 // FPLLLM - FPL Normal League Live Tracker adapted to look like H2H
 const FPL_BASE_URL = 'https://fantasy.premierleague.com/api';
-const PROXY_URL = 'https://corsproxy.io/?';
+const PROXY_URL = 'https://api.allorigins.win/raw?url=';
 
 // Hardcoded Normal League
 const LEAGUE_ID = 1549023;
@@ -39,7 +39,7 @@ function stopLoadingAnimation() {
 }
 
 async function fetchWithProxy(url) {
-    const response = await fetch(PROXY_URL + encodeURIComponent(url));
+    const response = await fetch(PROXY_URL + url);
     if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
     }
