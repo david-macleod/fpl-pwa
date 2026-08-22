@@ -2,13 +2,13 @@
 // below is same-origin — no CORS, and no third-party proxy left to rate-limit us.
 const FPL_BASE_URL = '/api/fpl';
 
-// Hardcoded H2H League
-// TODO(2026/27): both IDs below are from last season and now 404 — a new H2H league
-// is created each season. DAVID_MACLEOD_TEAM_ID is the dangerous one: entry ids get
-// recycled, and 785223 currently resolves to a *different manager's* team, so a stale
-// value here shows wrong data rather than erroring.
-const H2H_LEAGUE_ID = 1017641;
-const DAVID_MACLEOD_TEAM_ID = 785223; // Fellaini's 11½
+// Hardcoded H2H League — 2026/27.
+// Both are season-specific and must be changed together each August: a new H2H league
+// is created, and entry ids are reissued (this team was 785223 in 2025/26, an id that
+// now belongs to a different manager — a stale value here shows wrong data silently
+// rather than erroring).
+const H2H_LEAGUE_ID = 592794;
+const DAVID_MACLEOD_TEAM_ID = 1456705; // Fellaini's 11½
 let currentGameweek = null;
 let teamsData = {};
 let playersData = {};
