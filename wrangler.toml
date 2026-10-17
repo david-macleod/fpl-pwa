@@ -4,9 +4,9 @@ compatibility_date = "2026-08-21"
 
 # The Worker serves ./public (the PWA) through the ASSETS binding.
 # run_worker_first = true so /api/* always reaches the Worker; everything else the
-# Worker hands to env.ASSETS.fetch. Deliberately no not_found_handling: this is a
-# multi-page static app (index.html + fplllm.html) with no client-side router, so a
-# missing file should be a real 404 rather than silently serving index.html.
+# Worker hands to env.ASSETS.fetch. Deliberately no not_found_handling: there is no
+# client-side router, so a missing file should be a real 404 rather than silently
+# serving index.html.
 [assets]
 directory = "./public"
 binding = "ASSETS"

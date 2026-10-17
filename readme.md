@@ -82,7 +82,6 @@ which keeps eight parallel team fetches off FPL's back.
 - `public/index.html` - Minimal league table structure
 - `public/styles.css` - Ultra-condensed mobile styling
 - `public/app.js` - H2H league standings and live points logic
-- `public/fplllm.js` - Classic league variant
 - `public/manifest.json` - PWA configuration
 - `public/sw.js` - Service worker for offline support
 - `generate-icons.html` - Icon generator utility (not served)
