@@ -1,11 +1,14 @@
-// FPL API endpoints
-const PROXY_URL = 'https://corsproxy.io/?';
-const FPL_BASE_URL = 'https://fantasy.premierleague.com/api';
+// Our own Worker (src/index.ts) proxies the FPL API on this path, so every call
+// below is same-origin — no CORS, and no third-party proxy left to rate-limit us.
+const FPL_BASE_URL = '/api/fpl';
 
-// Hardcoded H2H League
-const H2H_LEAGUE_ID = 1017641;
-const TEAM_IDS = [8431008, 785223, 6853564, 6309303, 3300973, 3466784, 6274965, 940183];
-const DAVID_MACLEOD_TEAM_ID = 785223; // Fellaini's 11½
+// Hardcoded H2H League — 2026/27.
+// Both are season-specific and must be changed together each August: a new H2H league
+// is created, and entry ids are reissued (this team was 785223 in 2025/26, an id that
+// now belongs to a different manager — a stale value here shows wrong data silently
+// rather than erroring).
+const H2H_LEAGUE_ID = 592794;
+const DAVID_MACLEOD_TEAM_ID = 1456705; // Fellaini's 11½
 let currentGameweek = null;
 let teamsData = {};
 let playersData = {};
@@ -35,15 +38,12 @@ window.addEventListener('load', () => {
     fetchLeagueData();
 });
 
-async function fetchWithProxy(url) {
-    try {
-        const response = await fetch(PROXY_URL + encodeURIComponent(url));
-        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-        return await response.json();
-    } catch (error) {
-        console.error('Fetch error:', error);
-        throw error;
+async function fetchApi(url) {
+    const response = await fetch(url, { signal: AbortSignal.timeout(20000) });
+    if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
     }
+    return response.json();
 }
 
 async function fetchLeagueData() {
@@ -52,7 +52,7 @@ async function fetchLeagueData() {
     
     try {
         // Get current gameweek and player data
-        const bootstrapData = await fetchWithProxy(`${FPL_BASE_URL}/bootstrap-static/`);
+        const bootstrapData = await fetchApi(`${FPL_BASE_URL}/bootstrap-static/`);
         currentGameweek = bootstrapData.events.find(gw => gw.is_current)?.id || 1;
         gwInfo.textContent = `GW${currentGameweek}`;
         
@@ -67,7 +67,7 @@ async function fetchLeagueData() {
         });
         
         // Fetch fixtures for current gameweek to determine game status
-        const fixturesResponse = await fetchWithProxy(`${FPL_BASE_URL}/fixtures/?event=${currentGameweek}`);
+        const fixturesResponse = await fetchApi(`${FPL_BASE_URL}/fixtures/?event=${currentGameweek}`);
         fixturesResponse.forEach(fixture => {
             // Store detailed fixture info for each team
             const homeTeam = bootstrapData.teams.find(t => t.id === fixture.team_h);
@@ -97,7 +97,7 @@ async function fetchLeagueData() {
         });
         
         // Get H2H league standings to get team info
-        const leagueData = await fetchWithProxy(`${FPL_BASE_URL}/leagues-h2h/${H2H_LEAGUE_ID}/standings/`);
+        const leagueData = await fetchApi(`${FPL_BASE_URL}/leagues-h2h/${H2H_LEAGUE_ID}/standings/`);
         
         // Store team info
         leagueData.standings.results.forEach(team => {
@@ -134,7 +134,7 @@ async function fetchH2HMatches() {
         
         // Fetch all pages of H2H matches
         while (hasMorePages) {
-            const matchesData = await fetchWithProxy(`${FPL_BASE_URL}/leagues-h2h-matches/league/${H2H_LEAGUE_ID}/?page=${page}`);
+            const matchesData = await fetchApi(`${FPL_BASE_URL}/leagues-h2h-matches/league/${H2H_LEAGUE_ID}/?page=${page}`);
             
             if (matchesData.results && matchesData.results.length > 0) {
                 allMatches = allMatches.concat(matchesData.results);
@@ -179,13 +179,13 @@ async function fetchAllTeamDetails() {
     
     try {
         // Fetch live gameweek data once
-        const liveData = await fetchWithProxy(`${FPL_BASE_URL}/event/${currentGameweek}/live/`);
+        const liveData = await fetchApi(`${FPL_BASE_URL}/event/${currentGameweek}/live/`);
         
         // Process each team
         const teamPromises = Object.keys(teamsInfo).map(async (teamId) => {
             try {
                 // Fetch team picks
-                const picksData = await fetchWithProxy(`${FPL_BASE_URL}/entry/${teamId}/event/${currentGameweek}/picks/`);
+                const picksData = await fetchApi(`${FPL_BASE_URL}/entry/${teamId}/event/${currentGameweek}/picks/`);
                 
                 // Process players with live data
                 const players = picksData.picks.map(pick => {

@@ -1,8 +1,9 @@
 // FPLLLM - FPL Normal League Live Tracker adapted to look like H2H
-const FPL_BASE_URL = 'https://fantasy.premierleague.com/api';
-const PROXY_URL = 'https://corsproxy.io/?';
+// Same-origin via our own Worker (src/index.ts) — see the note in app.js.
+const FPL_BASE_URL = '/api/fpl';
 
 // Hardcoded Normal League
+// TODO(2026/27): stale — this classic league id 404s now, needs the new season's id.
 const LEAGUE_ID = 1549023;
 
 let currentGW = null;
@@ -38,8 +39,8 @@ function stopLoadingAnimation() {
     }
 }
 
-async function fetchWithProxy(url) {
-    const response = await fetch(PROXY_URL + encodeURIComponent(url));
+async function fetchApi(url) {
+    const response = await fetch(url, { signal: AbortSignal.timeout(20000) });
     if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
     }
@@ -74,14 +75,14 @@ async function loadData() {
         showLoading();
         
         // Get current gameweek data
-        const bootstrapData = await fetchWithProxy(`${FPL_BASE_URL}/bootstrap-static/`);
+        const bootstrapData = await fetchApi(`${FPL_BASE_URL}/bootstrap-static/`);
         gameweekData = bootstrapData.events.find(gw => gw.is_current);
         currentGW = gameweekData.id;
         
         gwInfoSpan.textContent = `GW${currentGW}`;
         
         // Get fixtures for current gameweek  
-        const fixturesResponse = await fetchWithProxy(`${FPL_BASE_URL}/fixtures/?event=${currentGW}`);
+        const fixturesResponse = await fetchApi(`${FPL_BASE_URL}/fixtures/?event=${currentGW}`);
         
         // Create lookup for team fixtures
         fixturesData = {};
@@ -102,10 +103,10 @@ async function loadData() {
         }
         
         // Get live data
-        liveData = await fetchWithProxy(`${FPL_BASE_URL}/event/${currentGW}/live/`);
+        liveData = await fetchApi(`${FPL_BASE_URL}/event/${currentGW}/live/`);
         
         // Get league standings
-        const leagueData = await fetchWithProxy(`${FPL_BASE_URL}/leagues-classic/${LEAGUE_ID}/standings/`);
+        const leagueData = await fetchApi(`${FPL_BASE_URL}/leagues-classic/${LEAGUE_ID}/standings/`);
         const standings = leagueData.standings.results;
         
         // Create fake matches from teams
@@ -117,8 +118,8 @@ async function loadData() {
             const teamId = standing.entry;
             
             try {
-                const teamData = await fetchWithProxy(`${FPL_BASE_URL}/entry/${teamId}/`);
-                const pickData = await fetchWithProxy(`${FPL_BASE_URL}/entry/${teamId}/event/${currentGW}/picks/`);
+                const teamData = await fetchApi(`${FPL_BASE_URL}/entry/${teamId}/`);
+                const pickData = await fetchApi(`${FPL_BASE_URL}/entry/${teamId}/event/${currentGW}/picks/`);
                 
                 // Process players
                 const players = pickData.picks.map(pick => {

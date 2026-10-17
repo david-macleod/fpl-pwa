@@ -1,7 +1,9 @@
-const CACHE_NAME = 'fpl-tracker-v2';
+const CACHE_NAME = 'fpl-tracker-v5';
+// Deliberately no '/index.html': the Worker's asset layer 307s it to '/', and
+// cache.addAll throws on a redirected response, which would fail the whole install.
+// '/' serves the same file with a 200.
 const urlsToCache = [
     '/',
-    '/index.html',
     '/styles.css',
     '/app.js',
     '/manifest.json'
@@ -47,9 +49,10 @@ self.addEventListener('fetch', event => {
         return;
     }
     
-    // Handle API requests differently (network first)
-    if (event.request.url.includes('fantasy.premierleague.com') || 
-        event.request.url.includes('corsproxy.io')) {
+    // Handle API requests differently (network first). These are same-origin now:
+    // our Worker proxies FPL under /api/fpl/ and already caches at the edge, so this
+    // cache is only a last-resort fallback for going offline mid-gameweek.
+    if (new URL(event.request.url).pathname.startsWith('/api/')) {
         event.respondWith(
             fetch(event.request)
                 .then(response => {
@@ -108,7 +111,7 @@ self.addEventListener('fetch', event => {
             .catch(() => {
                 // If both cache and network fail, show offline page or 404
                 if (event.request.destination === 'document') {
-                    return caches.match('/index.html');
+                    return caches.match('/');
                 }
                 return new Response('File not found', { 
                     status: 404, 
