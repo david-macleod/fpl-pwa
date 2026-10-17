@@ -17,10 +17,20 @@
         <button id="refresh">↻</button>
     </div>
 
+    <nav class="tabs">
+        <button class="tab" data-tab="matches">Matches</button>
+        <button class="tab" data-tab="starred">Starred Teams</button>
+    </nav>
+
     <div id="loading" class="loading hidden">Loading...</div>
     <div id="error" class="error hidden"></div>
 
     <div id="matchesContainer" class="matches-container hidden"></div>
+
+    <div id="starredContainer" class="matches-container hidden">
+        <select id="starredSelect" class="starred-select" aria-label="Starred team"></select>
+        <div id="starredTeam"><div class="loading">Loading...</div></div>
+    </div>
 
     <script src="app.js"></script>
 </body>

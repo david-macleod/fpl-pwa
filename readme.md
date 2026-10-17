@@ -12,6 +12,8 @@ A minimal, mobile-optimized Progressive Web App for tracking live Fantasy Premie
 - Mobile-optimized for information density
 - Offline support with service worker
 - Installable as Chrome app
+- Starred Teams tab: live squad for any hard-coded team outside the H2H league
+  (`STARRED_TEAMS` in `public/app.js`)
 
 ## Architecture
 
@@ -81,7 +83,7 @@ which keeps eight parallel team fetches off FPL's back.
 - `wrangler.toml` - Worker config, custom domain, assets binding
 - `public/index.html` - Minimal league table structure
 - `public/styles.css` - Ultra-condensed mobile styling
-- `public/app.js` - H2H league standings and live points logic
+- `public/app.js` - H2H matches, Starred Teams tab and live points logic
 - `public/manifest.json` - PWA configuration
 - `public/sw.js` - Service worker for offline support
 - `generate-icons.html` - Icon generator utility (not served)

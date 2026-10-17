@@ -9,12 +9,22 @@ const FPL_BASE_URL = '/api/fpl';
 // rather than erroring).
 const H2H_LEAGUE_ID = 592794;
 const DAVID_MACLEOD_TEAM_ID = 1456705; // Fellaini's 11½
+
+// Other teams to follow on the Starred Teams tab. Entry ids are reissued each season
+// too, so check these every August alongside the two above.
+const STARRED_TEAMS = [
+    { id: 3583547, label: 'Ivar' },     // I&A — MacLeod league
+    { id: 2630268, label: 'Angus' },    // Amac — MacLeod league
+    { id: 4121739, label: 'Lawrence' }, // Tractorboys — Speechmatics league
+];
 let currentGameweek = null;
 let teamsData = {};
 let playersData = {};
 let teamsInfo = {};
 let h2hMatches = [];
 let fixturesData = {};
+let liveData = null;
+let starredTeamId = loadPref('starredTeam', STARRED_TEAMS[0].id, Number);
 
 // Register service worker
 if ('serviceWorker' in navigator) {
@@ -29,9 +39,31 @@ const errorDiv = document.getElementById('error');
 const matchesContainer = document.getElementById('matchesContainer');
 const gwInfo = document.getElementById('gwInfo');
 const refreshBtn = document.getElementById('refresh');
+const tabButtons = document.querySelectorAll('.tab');
+const starredContainer = document.getElementById('starredContainer');
+const starredSelect = document.getElementById('starredSelect');
+const starredTeamDiv = document.getElementById('starredTeam');
 
 // Event listeners
 refreshBtn.addEventListener('click', fetchLeagueData);
+tabButtons.forEach(btn => btn.addEventListener('click', () => showTab(btn.dataset.tab)));
+
+STARRED_TEAMS.forEach(team => {
+    const option = document.createElement('option');
+    option.value = team.id;
+    option.textContent = team.label;
+    starredSelect.appendChild(option);
+});
+if (!STARRED_TEAMS.some(t => t.id === starredTeamId)) starredTeamId = STARRED_TEAMS[0].id;
+starredSelect.value = starredTeamId;
+starredSelect.addEventListener('change', () => {
+    starredTeamId = Number(starredSelect.value);
+    savePref('starredTeam', starredTeamId);
+    if (liveData) loadStarredTeam();
+});
+
+let activeTab = loadPref('tab', 'matches', String);
+showTab(activeTab);
 
 // Load on startup
 window.addEventListener('load', () => {
@@ -179,138 +211,12 @@ async function fetchAllTeamDetails() {
     
     try {
         // Fetch live gameweek data once
-        const liveData = await fetchApi(`${FPL_BASE_URL}/event/${currentGameweek}/live/`);
+        liveData = await fetchApi(`${FPL_BASE_URL}/event/${currentGameweek}/live/`);
         
         // Process each team
         const teamPromises = Object.keys(teamsInfo).map(async (teamId) => {
             try {
-                // Fetch team picks
-                const picksData = await fetchApi(`${FPL_BASE_URL}/entry/${teamId}/event/${currentGameweek}/picks/`);
-                
-                // Process players with live data
-                const players = picksData.picks.map(pick => {
-                    const playerInfo = playersData[pick.element];
-                    const liveStats = liveData.elements[pick.element - 1]?.stats || {};
-                    
-                    let points = liveStats.total_points || 0;
-                    if (pick.is_captain) points *= 2;
-                    
-                    // Get fixture info for player's team
-                    const fixtureInfo = playerInfo?.teamId ? fixturesData[playerInfo.teamId] : null;
-                    
-                    // Determine if player is "done" with more accurate logic
-                    let playerDone = false;
-                    let didntPlay = false;
-                    let gameInProgress = false;
-                    let bonusPending = false;
-                    
-                    if (fixtureInfo) {
-                        const gameMinutes = fixtureInfo.minutes || 0;
-                        const playerMinutes = liveStats.minutes || 0;
-                        const hasRedCard = liveStats.red_cards > 0;
-                        const hasBonus = liveStats.bonus > 0;
-                        
-                        // Check if game is in progress (started but whistle not yet blown)
-                        gameInProgress = fixtureInfo.started && !fixtureInfo.finished_provisional;
-                        
-                        // Check if whistle blown but bonus points not yet awarded
-                        bonusPending = fixtureInfo.finished_provisional && !fixtureInfo.finished && playerMinutes > 0;
-                        
-                        // Player is done if:
-                        // 1. Game is fully finished (with bonus points awarded)
-                        if (fixtureInfo.finished) {
-                            playerDone = true;
-                            didntPlay = playerMinutes === 0;
-                        }
-                        // 2. Game finished (whistle blown) - all players are done regardless of bonus status
-                        else if (fixtureInfo.finished_provisional) {
-                            playerDone = true;
-                            didntPlay = playerMinutes === 0;
-                        }
-                        // 3. Game in progress and player got a red card
-                        else if (hasRedCard) {
-                            playerDone = true;
-                        }
-                        // 4. Game in progress and player was subbed off (started but played less than game minutes - 5)
-                        else if (playerMinutes > 0 && playerMinutes < gameMinutes - 5 && liveStats.starts > 0) {
-                            playerDone = true;
-                        }
-                    }
-                    
-                    const opponentTeam = fixtureInfo?.opponent || '';
-                    const displayTeam = fixtureInfo?.isHome ? opponentTeam : opponentTeam.toLowerCase();
-                    
-                    // Generate event emojis based on stats
-                    let eventEmojis = '';
-                    if (liveStats.goals_scored > 0) {
-                        eventEmojis += '⚽️'.repeat(liveStats.goals_scored);
-                    }
-                    if (liveStats.assists > 0) {
-                        eventEmojis += '👟'.repeat(liveStats.assists);
-                    }
-                    if (liveStats.yellow_cards > 0) {
-                        eventEmojis += '🟨'.repeat(liveStats.yellow_cards);
-                    }
-                    if (liveStats.red_cards > 0) {
-                        eventEmojis += '🟥'.repeat(liveStats.red_cards);
-                    }
-                    if (liveStats.saves > 2 && playerInfo?.position === 'GKP') {
-                        eventEmojis += '🧤';
-                    }
-                    
-                    return {
-                        position: pick.position,
-                        name: playerInfo?.name || 'Unknown',
-                        team: displayTeam,
-                        playerPosition: playerInfo?.position || '',
-                        points: points,
-                        isCaptain: pick.is_captain,
-                        isViceCaptain: pick.is_vice_captain,
-                        minutes: liveStats.minutes || 0,
-                        playerDone: playerDone,
-                        didntPlay: didntPlay,
-                        eventEmojis: eventEmojis,
-                        gameInProgress: gameInProgress,
-                        bonusPending: bonusPending,
-                        gameStarted: fixtureInfo?.started || false
-                    };
-                });
-                
-                // Sort into XI and bench
-                const xi = players.filter(p => p.position <= 11).sort((a, b) => a.position - b.position);
-                const bench = players.filter(p => p.position > 11).sort((a, b) => a.position - b.position);
-                
-                // Determine auto-substitutions according to FPL rules
-                const autoSubs = calculateAutoSubs(xi, bench);
-                
-                // Mark bench players who will come on
-                bench.forEach(player => {
-                    player.willAutoSub = autoSubs.includes(player.position);
-                });
-                
-                // Calculate total live points (including auto-subs)
-                let livePoints = xi.reduce((sum, p) => sum + p.points, 0);
-                // Add points from auto-subs
-                bench.forEach(player => {
-                    if (player.willAutoSub) {
-                        livePoints += player.points;
-                        // Subtract the points of the player being replaced
-                        const replacedPlayer = xi.find(p => !p.didntPlay || p.position === player.position);
-                        if (replacedPlayer && replacedPlayer.didntPlay) {
-                            livePoints -= replacedPlayer.points;
-                        }
-                    }
-                });
-                livePoints -= (picksData.entry_history.event_transfers_cost || 0);
-                
-                teamsData[teamId] = {
-                    ...teamsInfo[teamId],
-                    xi: xi,
-                    bench: bench,
-                    livePoints: livePoints,
-                    transfersCost: picksData.entry_history.event_transfers_cost || 0
-                };
-                
+                teamsData[teamId] = await fetchTeamDetails(teamId, teamsInfo[teamId]);
             } catch (error) {
                 console.error(`Error fetching team ${teamId}:`, error);
                 teamsData[teamId] = {
@@ -327,12 +233,145 @@ async function fetchAllTeamDetails() {
         // Display H2H matches with player grids
         displayMatches();
         
+        if (activeTab === 'starred') await loadStarredTeam();
+        
     } catch (error) {
         console.error('Error fetching team details:', error);
     } finally {
         refreshBtn.textContent = '↻';
         refreshBtn.disabled = false;
     }
+}
+
+// Picks for one team this gameweek, scored against the latest live data.
+// Needs currentGameweek, playersData, fixturesData and liveData to be loaded.
+async function fetchTeamDetails(teamId, info) {
+    // Fetch team picks
+    const picksData = await fetchApi(`${FPL_BASE_URL}/entry/${teamId}/event/${currentGameweek}/picks/`);
+    
+    // Process players with live data
+    const players = picksData.picks.map(pick => {
+        const playerInfo = playersData[pick.element];
+        const liveStats = liveData.elements[pick.element - 1]?.stats || {};
+        
+        let points = liveStats.total_points || 0;
+        if (pick.is_captain) points *= 2;
+        
+        // Get fixture info for player's team
+        const fixtureInfo = playerInfo?.teamId ? fixturesData[playerInfo.teamId] : null;
+        
+        // Determine if player is "done" with more accurate logic
+        let playerDone = false;
+        let didntPlay = false;
+        let gameInProgress = false;
+        let bonusPending = false;
+        
+        if (fixtureInfo) {
+            const gameMinutes = fixtureInfo.minutes || 0;
+            const playerMinutes = liveStats.minutes || 0;
+            const hasRedCard = liveStats.red_cards > 0;
+            const hasBonus = liveStats.bonus > 0;
+            
+            // Check if game is in progress (started but whistle not yet blown)
+            gameInProgress = fixtureInfo.started && !fixtureInfo.finished_provisional;
+            
+            // Check if whistle blown but bonus points not yet awarded
+            bonusPending = fixtureInfo.finished_provisional && !fixtureInfo.finished && playerMinutes > 0;
+            
+            // Player is done if:
+            // 1. Game is fully finished (with bonus points awarded)
+            if (fixtureInfo.finished) {
+                playerDone = true;
+                didntPlay = playerMinutes === 0;
+            }
+            // 2. Game finished (whistle blown) - all players are done regardless of bonus status
+            else if (fixtureInfo.finished_provisional) {
+                playerDone = true;
+                didntPlay = playerMinutes === 0;
+            }
+            // 3. Game in progress and player got a red card
+            else if (hasRedCard) {
+                playerDone = true;
+            }
+            // 4. Game in progress and player was subbed off (started but played less than game minutes - 5)
+            else if (playerMinutes > 0 && playerMinutes < gameMinutes - 5 && liveStats.starts > 0) {
+                playerDone = true;
+            }
+        }
+        
+        const opponentTeam = fixtureInfo?.opponent || '';
+        const displayTeam = fixtureInfo?.isHome ? opponentTeam : opponentTeam.toLowerCase();
+        
+        // Generate event emojis based on stats
+        let eventEmojis = '';
+        if (liveStats.goals_scored > 0) {
+            eventEmojis += '⚽️'.repeat(liveStats.goals_scored);
+        }
+        if (liveStats.assists > 0) {
+            eventEmojis += '👟'.repeat(liveStats.assists);
+        }
+        if (liveStats.yellow_cards > 0) {
+            eventEmojis += '🟨'.repeat(liveStats.yellow_cards);
+        }
+        if (liveStats.red_cards > 0) {
+            eventEmojis += '🟥'.repeat(liveStats.red_cards);
+        }
+        if (liveStats.saves > 2 && playerInfo?.position === 'GKP') {
+            eventEmojis += '🧤';
+        }
+        
+        return {
+            position: pick.position,
+            name: playerInfo?.name || 'Unknown',
+            team: displayTeam,
+            playerPosition: playerInfo?.position || '',
+            points: points,
+            isCaptain: pick.is_captain,
+            isViceCaptain: pick.is_vice_captain,
+            minutes: liveStats.minutes || 0,
+            playerDone: playerDone,
+            didntPlay: didntPlay,
+            eventEmojis: eventEmojis,
+            gameInProgress: gameInProgress,
+            bonusPending: bonusPending,
+            gameStarted: fixtureInfo?.started || false
+        };
+    });
+    
+    // Sort into XI and bench
+    const xi = players.filter(p => p.position <= 11).sort((a, b) => a.position - b.position);
+    const bench = players.filter(p => p.position > 11).sort((a, b) => a.position - b.position);
+    
+    // Determine auto-substitutions according to FPL rules
+    const autoSubs = calculateAutoSubs(xi, bench);
+    
+    // Mark bench players who will come on
+    bench.forEach(player => {
+        player.willAutoSub = autoSubs.includes(player.position);
+    });
+    
+    // Calculate total live points (including auto-subs)
+    let livePoints = xi.reduce((sum, p) => sum + p.points, 0);
+    // Add points from auto-subs
+    bench.forEach(player => {
+        if (player.willAutoSub) {
+            livePoints += player.points;
+            // Subtract the points of the player being replaced
+            const replacedPlayer = xi.find(p => !p.didntPlay || p.position === player.position);
+            if (replacedPlayer && replacedPlayer.didntPlay) {
+                livePoints -= replacedPlayer.points;
+            }
+        }
+    });
+    livePoints -= (picksData.entry_history.event_transfers_cost || 0);
+    
+    return {
+        ...info,
+        xi: xi,
+        bench: bench,
+        livePoints: livePoints,
+        transfersCost: picksData.entry_history.event_transfers_cost || 0
+    };
 }
 
 function displayMatches() {
@@ -603,6 +642,82 @@ function createTeamGrid(team) {
     gridDiv.appendChild(benchGrid);
     
     return gridDiv;
+}
+
+function showTab(tab) {
+    activeTab = tab === 'starred' ? 'starred' : 'matches';
+    savePref('tab', activeTab);
+    tabButtons.forEach(btn => btn.classList.toggle('active', btn.dataset.tab === activeTab));
+    matchesContainer.classList.toggle('tab-hidden', activeTab !== 'matches');
+    starredContainer.classList.toggle('hidden', activeTab !== 'starred');
+    // Before the first load finishes there is nothing to score against; the load
+    // itself renders the starred team once it is done.
+    if (activeTab === 'starred' && liveData) loadStarredTeam();
+}
+
+async function loadStarredTeam() {
+    const teamId = starredTeamId;
+    try {
+        const [entry, team] = await Promise.all([
+            fetchApi(`${FPL_BASE_URL}/entry/${teamId}/`),
+            fetchTeamDetails(teamId, {})
+        ]);
+        // A newer selection may have finished first; don't paint over it.
+        if (teamId !== starredTeamId) return;
+        displayStarredTeam({
+            ...team,
+            name: entry.name,
+            manager: `${entry.player_first_name} ${entry.player_last_name}`
+        });
+    } catch (error) {
+        if (teamId !== starredTeamId) return;
+        console.error(`Error fetching starred team ${teamId}:`, error);
+        starredTeamDiv.innerHTML = '<div class="error">Failed to load team</div>';
+    }
+}
+
+function displayStarredTeam(team) {
+    starredTeamDiv.innerHTML = '';
+    
+    const cardDiv = document.createElement('div');
+    cardDiv.className = 'match-container';
+    
+    const headerDiv = document.createElement('div');
+    headerDiv.className = 'match-header';
+    headerDiv.innerHTML = `
+        <div class="team-header">
+            <div class="team-info">
+                <span class="team-name">${team.name}</span>
+                <span class="manager-name">${team.manager}</span>
+            </div>
+            <span class="score">${team.transfersCost > 0 ? `<span class="points-hit">(-${team.transfersCost}) </span>` : ''}${team.livePoints}</span>
+        </div>
+    `;
+    
+    const gridWrapDiv = document.createElement('div');
+    gridWrapDiv.className = 'single-team-grid';
+    gridWrapDiv.appendChild(createTeamGrid(team));
+    
+    cardDiv.appendChild(headerDiv);
+    cardDiv.appendChild(gridWrapDiv);
+    starredTeamDiv.appendChild(cardDiv);
+}
+
+// localStorage can be missing or throw (private mode, blocked storage); the app
+// works the same without it, it just forgets the last tab and team.
+function loadPref(key, fallback, parse) {
+    try {
+        const value = localStorage.getItem(key);
+        return value === null ? fallback : parse(value);
+    } catch {
+        return fallback;
+    }
+}
+
+function savePref(key, value) {
+    try {
+        localStorage.setItem(key, value);
+    } catch {}
 }
 
 function showLoading(show) {

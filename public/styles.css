@@ -45,6 +45,55 @@ body {
     cursor: pointer;
 }
 
+/* Tabs — sticks just under the header (~34px tall) */
+.tabs {
+    position: sticky;
+    top: 34px;
+    display: flex;
+    background: #fff;
+    border-bottom: 1px solid #e0e0e0;
+    z-index: 99;
+}
+
+.tab {
+    flex: 1;
+    background: none;
+    border: none;
+    border-bottom: 2px solid transparent;
+    padding: 7px 0 5px;
+    font: inherit;
+    font-weight: bold;
+    color: #888;
+    cursor: pointer;
+}
+
+.tab.active {
+    color: #37003c;
+    border-bottom-color: #00ff87;
+}
+
+.tab-hidden {
+    display: none !important;
+}
+
+.starred-select {
+    display: block;
+    width: 100%;
+    margin-bottom: 4px;
+    padding: 5px 6px;
+    font: inherit;
+    font-size: 12px;
+    font-weight: bold;
+    color: #37003c;
+    background: #fff;
+    border: 1px solid #e0e0e0;
+    border-radius: 4px;
+}
+
+.single-team-grid {
+    padding: 6px;
+}
+
 .loading, .error {
     padding: 8px;
     text-align: center;
