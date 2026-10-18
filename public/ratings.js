@@ -1,43 +1,47 @@
-// Fixtures tab: attack/defence form ratings for every Premier League team, how they
-// have moved over the season, and how hard each team's next six fixtures look.
+// Fixtures tab: attack/defence ratings for every Premier League team, how they have
+// moved over the season, and how hard each team's next six fixtures look.
 //
-// The ratings are the ones from the old Defensive_Records spreadsheet:
-//   1. Every match scores 0/1/2 for attack (goals scored: 0, 1, 2+) and for defence
-//      (goals conceded: 2+, 1, clean sheet).
-//   2. Home rating = ½ × (scores from the last 4 home games + scores from the last 6
-//      games anywhere). Away rating likewise with the last 4 away games. Range 0–10.
-//   3. A fixture's difficulty is the opponent's rating at the venue they play at: their
+// The ratings (0–10, higher = better):
+//   1. Goals scored and conceded per game, 80% season to date + 20% last 6 games.
+//   2. Home advantage is the same for every team: ±0.154 goals (home teams average
+//      1.55 goals a game, away teams 1.25, over 16 seasons).
+//   3. Attack = 0.07 + 3.58 × goals scored per game; defence = 10.58 − 4.28 × goals
+//      conceded per game, clipped to 0–10. The scale was fitted to span the same
+//      range as the old Defensive_Records spreadsheet formula.
+//   4. A fixture's difficulty is the opponent's rating at the venue they play at: their
 //      defence rating for your attackers, their attack rating for your defenders.
-// Early in the season, before a team has 6 games and 4 at the venue, the windows are
-// scaled up from the games they have (e.g. 3 home games count ×4/3). Backtested over
-// 16 seasons that is about as predictive as the full formula from 6 games on, and
-// weak before 4, so those points are marked provisional.
+// Backtested over 16 seasons this predicted goals and clean sheets clearly better than
+// the spreadsheet's last-6 / last-4-at-venue formula, which it replaced. Separate
+// home and away form for each team did not carry over within a season, so it's gone.
+// Before 6 games a rating is marked provisional.
 //
 // Loaded before app.js; uses its fetchApi/FPL_BASE_URL/loadPref/savePref at call time.
 
 const RATING_FIXTURES_AHEAD = 6;
 const RATING_MIN_GAMES = 2;      // below this there is no rating at all
-const RATING_FULL_GAMES = 6;     // below this (or < 4 at the venue) it's provisional
+const RATING_FULL_GAMES = 6;     // below this it's provisional
+const HOME_BONUS_GOALS = 0.154;
+const ATTACK_SCALE = { base: 0.07, perGoal: 3.58 };
+const DEFENCE_SCALE = { base: 10.58, perGoal: 4.28 };
 
 let ratingsData = null;          // { teams, byId, history, current, upcoming }
 let ratingsLoadId = 0;
 let ratingsTeamId = null;
 let ratingsRankBy = 'att';
 
-const attackPoints = goals => Math.min(goals, 2);
-const defencePoints = conceded => conceded === 0 ? 2 : conceded === 1 ? 1 : 0;
+const clamp10 = v => Math.max(0, Math.min(10, v));
+const mean = xs => xs.reduce((s, x) => s + x, 0) / xs.length;
 
-// hist: the team's matches so far, oldest first: { venue: 'H'|'A', a, d }
+// hist: the team's matches so far, oldest first: { gf, ga }. venue: where the rating is
+// for, 'H' or 'A'; it only shifts both ratings by the shared home advantage.
 function formRating(hist, venue) {
-    const last6 = hist.slice(-6);
-    const atVenue = hist.filter(m => m.venue === venue).slice(-4);
-    if (last6.length < RATING_MIN_GAMES || atVenue.length === 0) return null;
-    const sum = (ms, key) => ms.reduce((s, m) => s + m[key], 0);
-    const scaled = (ms, key, n) => sum(ms, key) * n / ms.length;
+    if (hist.length < RATING_MIN_GAMES) return null;
+    const blend = key => 0.8 * mean(hist.map(m => m[key])) + 0.2 * mean(hist.slice(-6).map(m => m[key]));
+    const bonus = venue === 'H' ? HOME_BONUS_GOALS : -HOME_BONUS_GOALS;
     return {
-        att: 0.5 * (scaled(atVenue, 'a', 4) + scaled(last6, 'a', 6)),
-        def: 0.5 * (scaled(atVenue, 'd', 4) + scaled(last6, 'd', 6)),
-        provisional: last6.length < RATING_FULL_GAMES || atVenue.length < 4
+        att: clamp10(ATTACK_SCALE.base + ATTACK_SCALE.perGoal * (blend('gf') + bonus)),
+        def: clamp10(DEFENCE_SCALE.base - DEFENCE_SCALE.perGoal * (blend('ga') - bonus)),
+        provisional: hist.length < RATING_FULL_GAMES
     };
 }
 
@@ -59,7 +63,7 @@ function buildRatings(bootstrap, fixtures) {
             [f.team_a, 'A', f.team_a_score, f.team_h_score]
         ];
         for (const [id, venue, scored, conceded] of sides) {
-            hist[id].push({ venue, a: attackPoints(scored), d: defencePoints(conceded) });
+            hist[id].push({ venue, gf: scored, ga: conceded });
             // Ratings going into the team's next match, plotted at the gameweek just
             // played. A double gameweek keeps only the later value.
             const point = { gw: f.event, home: formRating(hist[id], 'H'), away: formRating(hist[id], 'A') };
@@ -122,35 +126,22 @@ async function loadRatings() {
 // ---------------------------------------------------------------------------
 // Rendering
 
-const fmt = v => v === null || v === undefined ? '–' : (Math.round(v * 2) / 2).toFixed(1);
+const fmt = v => v === null || v === undefined ? '–' : v.toFixed(1);
 
-// Mean of every team's current rating for a measure, used as the neutral midpoint of
-// the easy↔hard colour scale so "average opponent" reads grey.
-function leagueMean(key) {
-    const vals = [];
-    for (const c of Object.values(ratingsData.current)) {
-        for (const v of ['H', 'A']) if (c[v]) vals.push(c[v][key]);
-    }
-    return vals.length ? vals.reduce((s, v) => s + v, 0) / vals.length : 5;
-}
-
-// Diverging scale: low opponent rating = easy (blue), high = hard (red), league
-// average = neutral grey. Returns [background, text colour].
-const EASY = [[205, 226, 251], [134, 182, 239], [42, 120, 214]];   // blue 100/250/450
-const HARD = [[251, 216, 214], [240, 150, 148], [208, 59, 59]];
-const NEUTRAL = [240, 239, 236];
-function difficultyColour(value, mid) {
+// Colour an opponent's rating green (weak opponent, easy game) -> yellow -> red (strong
+// opponent, tough game). measure is which of their ratings it is: 'att' or 'def'.
+// Limits are the 10th percentile, median and 90th percentile of these ratings over
+// 2021/22–2025/26, so about 10% of fixtures are fully green and 10% fully red.
+const DIFFICULTY_LIMITS = { att: [3.0, 5.1, 7.8], def: [1.8, 4.5, 6.8] };
+const DIFFICULTY_COLOURS = [[99, 190, 123], [255, 235, 132], [248, 105, 107]];   // green, yellow, red
+function difficultyColour(value, measure) {
     if (value === null) return ['#f5f5f5', '#888'];
-    const t = Math.max(-1, Math.min(1, (value - mid) / 4));   // ±4 rating points = full strength
-    const ramp = t < 0 ? EASY : HARD;
-    const k = Math.abs(t);
-    const stops = [NEUTRAL, ...ramp];
-    const pos = k * (stops.length - 1);
-    const i = Math.min(Math.floor(pos), stops.length - 2);
-    const f = pos - i;
-    const rgb = stops[i].map((c, j) => Math.round(c + (stops[i + 1][j] - c) * f));
-    const lum = (0.2126 * rgb[0] + 0.7152 * rgb[1] + 0.0722 * rgb[2]) / 255;
-    return [`rgb(${rgb.join(',')})`, lum < 0.55 ? '#fff' : '#1a1a1a'];
+    const [lo, mid, hi] = DIFFICULTY_LIMITS[measure];
+    const [from, to, f] = value <= mid
+        ? [0, 1, Math.max(0, (value - lo) / (mid - lo))]
+        : [1, 2, Math.min(1, (value - mid) / (hi - mid))];
+    const rgb = DIFFICULTY_COLOURS[from].map((c, j) => Math.round(c + (DIFFICULTY_COLOURS[to][j] - c) * f));
+    return [`rgb(${rgb.join(',')})`, '#1a1a1a'];
 }
 
 function ordinal(n) {
@@ -177,8 +168,6 @@ function renderRatings() {
     const team = byId[ratingsTeamId];
     const cur = current[team.id];
     const next = upcoming[team.id];
-    const midDef = leagueMean('def');
-    const midAtt = leagueMean('att');
     const attRank = easeRanking('oppDef').findIndex(r => r.team.id === team.id) + 1;
     const defRank = easeRanking('oppAtt').findIndex(r => r.team.id === team.id) + 1;
     const provisional = (cur.H && cur.H.provisional) || (cur.A && cur.A.provisional);
@@ -196,7 +185,7 @@ function renderRatings() {
                 ${ratingTile('Defence', 'home', cur.H && cur.H.def)}
                 ${ratingTile('Defence', 'away', cur.A && cur.A.def)}
             </div>
-            ${provisional ? `<div class="note">Provisional: ${cur.home} home and ${cur.away} away games so far. The full formula needs 6 games including 4 home and 4 away; until then the windows are scaled up from the games played.</div>` : ''}
+            ${provisional ? `<div class="note">Provisional: based on ${cur.played} game${cur.played === 1 ? '' : 's'}. Ratings settle after about 6.</div>` : ''}
         </div>
 
         <div class="card">
@@ -208,19 +197,19 @@ function renderRatings() {
                     ${next.map(f => `<tr>
                         <td class="gw">${f.gw}</td>
                         <td>${byId[f.opp].name} <span class="muted">(${f.home ? 'H' : 'A'})</span></td>
-                        ${difficultyCell(f.oppDef, midDef)}
-                        ${difficultyCell(f.oppAtt, midAtt)}
+                        ${difficultyCell(f.oppDef, 'def')}
+                        ${difficultyCell(f.oppAtt, 'att')}
                     </tr>`).join('')}
                 </tbody>
                 <tfoot><tr>
                     <td></td><td>Average</td>
-                    ${difficultyCell(averageOf(next, 'oppDef'), midDef, attRank ? `${ordinal(attRank)} easiest` : '')}
-                    ${difficultyCell(averageOf(next, 'oppAtt'), midAtt, defRank ? `${ordinal(defRank)} easiest` : '')}
+                    ${difficultyCell(averageOf(next, 'oppDef'), 'def', attRank ? `${ordinal(attRank)} easiest` : '')}
+                    ${difficultyCell(averageOf(next, 'oppAtt'), 'att', defRank ? `${ordinal(defRank)} easiest` : '')}
                 </tr></tfoot>
             </table>
-            <div class="scale-key"><span class="key-swatch" style="background:${difficultyColour(midDef - 4, midDef)[0]}"></span>Easy
-                <span class="key-swatch" style="background:${difficultyColour(midDef, midDef)[0]}"></span>Average
-                <span class="key-swatch" style="background:${difficultyColour(midDef + 4, midDef)[0]}"></span>Hard</div>
+            <div class="scale-key"><span class="key-swatch" style="background:${difficultyColour(0, 'def')[0]}"></span>Easy
+                <span class="key-swatch" style="background:${difficultyColour(DIFFICULTY_LIMITS.def[1], 'def')[0]}"></span>Average
+                <span class="key-swatch" style="background:${difficultyColour(10, 'def')[0]}"></span>Hard</div>
             ` : '<div class="note">No fixtures scheduled.</div>'}
         </div>
 
@@ -243,7 +232,7 @@ function renderRatings() {
                 <button class="seg-btn${ratingsRankBy === 'att' ? ' active' : ''}" data-rank="att">For attackers</button>
                 <button class="seg-btn${ratingsRankBy === 'def' ? ' active' : ''}" data-rank="def">For defenders</button>
             </div>
-            ${rankingTable(ratingsRankBy === 'att' ? 'oppDef' : 'oppAtt', ratingsRankBy === 'att' ? midDef : midAtt)}
+            ${rankingTable(ratingsRankBy === 'att' ? 'oppDef' : 'oppAtt', ratingsRankBy === 'att' ? 'def' : 'att')}
         </div>
     `;
 
@@ -269,19 +258,19 @@ function ratingTile(measure, venue, value) {
     return `<div class="rating-tile"><div class="tile-label">${measure} <span class="muted">${venue}</span></div><div class="tile-value">${fmt(value)}</div></div>`;
 }
 
-function difficultyCell(value, mid, sub) {
-    const [bg, fg] = difficultyColour(value, mid);
+function difficultyCell(value, measure, sub) {
+    const [bg, fg] = difficultyColour(value, measure);
     return `<td class="diff" style="background:${bg};color:${fg}">${fmt(value)}${sub ? `<div class="diff-sub">${sub}</div>` : ''}</td>`;
 }
 
-function rankingTable(key, mid) {
+function rankingTable(key, measure) {
     const { byId, upcoming } = ratingsData;
     return `<table class="rank-table"><tbody>
         ${easeRanking(key).map((r, i) => `<tr class="rank-row${r.team.id === ratingsTeamId ? ' selected' : ''}" data-team="${r.team.id}">
             <td class="rank-pos">${i + 1}</td>
             <td class="rank-team">${r.team.short}</td>
             ${upcoming[r.team.id].map(f => {
-                const [bg, fg] = difficultyColour(f[key], mid);
+                const [bg, fg] = difficultyColour(f[key], measure);
                 const opp = byId[f.opp].short;
                 return `<td class="rank-fix" style="background:${bg};color:${fg}" title="GW${f.gw} ${byId[f.opp].name} (${f.home ? 'H' : 'A'}) ${fmt(f[key])}">${f.home ? opp : opp.toLowerCase()}</td>`;
             }).join('')}
@@ -293,8 +282,9 @@ function rankingTable(key, mid) {
 }
 
 // ---------------------------------------------------------------------------
-// Line chart: one measure, home and away series, over gameweeks. Plain SVG, sized by
-// viewBox so it scales to its column. Provisional stretches are drawn dashed.
+// Line chart: one measure, home and away series, over gameweeks. With one shared home
+// advantage the two lines run parallel. Plain SVG, sized by viewBox so it scales to its
+// column. Provisional stretches are drawn dashed.
 
 const CHART = { w: 170, h: 120, left: 18, right: 6, top: 6, bottom: 16 };
 

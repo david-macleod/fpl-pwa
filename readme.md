@@ -14,8 +14,9 @@ A minimal, mobile-optimized Progressive Web App for tracking live Fantasy Premie
 - Installable as Chrome app
 - Starred Teams tab (swipe or tap to switch): live squads, side by side, for hard-coded teams outside the H2H league
   (`STARRED_TEAMS` in `public/app.js`)
-- Fixtures tab: attack/defence form ratings (0–10, home and away) for every PL team,
-  their trend over the season, next-6 fixture difficulty, and all teams ranked by it.
+- Fixtures tab: attack/defence ratings (0–10) for every PL team from goals per game
+  (season to date, weighted towards the last 6, plus a shared home advantage), their
+  trend over the season, next-6 fixture difficulty, and all teams ranked by it.
   The formula is documented at the top of `public/ratings.js`
 
 ## Architecture
