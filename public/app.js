@@ -49,6 +49,30 @@ tabButtons.forEach(btn => btn.addEventListener('click', () => showTab(btn.datase
 let activeTab = loadPref('tab', 'matches', String);
 showTab(activeTab);
 
+// Swipe left/right anywhere to move between tabs. Only a clearly horizontal, fairly
+// quick, single-finger swipe counts, so scrolling the page never flips the tab.
+// Swipes starting at the screen edge are left alone for the browser's back gesture.
+const TAB_ORDER = ['matches', 'starred'];
+let swipeStart = null;
+document.addEventListener('touchstart', e => {
+    const touch = e.touches[0];
+    const edge = 20;
+    swipeStart = e.touches.length === 1 && touch.clientX > edge && touch.clientX < window.innerWidth - edge
+        ? { x: touch.clientX, y: touch.clientY, time: Date.now() }
+        : null;
+}, { passive: true });
+document.addEventListener('touchend', e => {
+    if (!swipeStart) return;
+    const touch = e.changedTouches[0];
+    const dx = touch.clientX - swipeStart.x;
+    const dy = touch.clientY - swipeStart.y;
+    const elapsed = Date.now() - swipeStart.time;
+    swipeStart = null;
+    if (Math.abs(dx) < 60 || Math.abs(dx) < Math.abs(dy) * 2 || elapsed > 600) return;
+    const next = TAB_ORDER.indexOf(activeTab) + (dx < 0 ? 1 : -1);
+    if (next >= 0 && next < TAB_ORDER.length) showTab(TAB_ORDER[next]);
+}, { passive: true });
+
 // Load on startup
 window.addEventListener('load', () => {
     fetchLeagueData();

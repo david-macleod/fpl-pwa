@@ -12,7 +12,7 @@ A minimal, mobile-optimized Progressive Web App for tracking live Fantasy Premie
 - Mobile-optimized for information density
 - Offline support with service worker
 - Installable as Chrome app
-- Starred Teams tab: live squads, side by side, for hard-coded teams outside the H2H league
+- Starred Teams tab (swipe or tap to switch): live squads, side by side, for hard-coded teams outside the H2H league
   (`STARRED_TEAMS` in `public/app.js`)
 
 ## Architecture
