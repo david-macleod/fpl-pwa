@@ -14,6 +14,9 @@ A minimal, mobile-optimized Progressive Web App for tracking live Fantasy Premie
 - Installable as Chrome app
 - Starred Teams tab (swipe or tap to switch): live squads, side by side, for hard-coded teams outside the H2H league
   (`STARRED_TEAMS` in `public/app.js`)
+- Fixtures tab: attack/defence form ratings (0–10, home and away) for every PL team,
+  their trend over the season, next-6 fixture difficulty, and all teams ranked by it.
+  The formula is documented at the top of `public/ratings.js`
 
 ## Architecture
 
@@ -84,6 +87,7 @@ which keeps eight parallel team fetches off FPL's back.
 - `public/index.html` - Minimal league table structure
 - `public/styles.css` - Ultra-condensed mobile styling
 - `public/app.js` - H2H matches, Starred Teams tab and live points logic
+- `public/ratings.js` - Fixtures tab: form ratings, fixture difficulty, charts
 - `public/manifest.json` - PWA configuration
 - `public/sw.js` - Service worker for offline support
 - `generate-icons.html` - Icon generator utility (not served)

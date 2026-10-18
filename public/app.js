@@ -41,9 +41,14 @@ const gwInfo = document.getElementById('gwInfo');
 const refreshBtn = document.getElementById('refresh');
 const tabButtons = document.querySelectorAll('.tab');
 const starredContainer = document.getElementById('starredContainer');
+const fixturesContainer = document.getElementById('fixturesContainer');
+const TAB_ORDER = ['matches', 'starred', 'fixtures'];
 
 // Event listeners
-refreshBtn.addEventListener('click', fetchLeagueData);
+refreshBtn.addEventListener('click', () => {
+    fetchLeagueData();
+    if (activeTab === 'fixtures') loadRatings();
+});
 tabButtons.forEach(btn => btn.addEventListener('click', () => showTab(btn.dataset.tab)));
 
 let activeTab = loadPref('tab', 'matches', String);
@@ -51,13 +56,14 @@ showTab(activeTab);
 
 // Swipe left/right anywhere to move between tabs. Only a clearly horizontal, fairly
 // quick, single-finger swipe counts, so scrolling the page never flips the tab.
-// Swipes starting at the screen edge are left alone for the browser's back gesture.
-const TAB_ORDER = ['matches', 'starred'];
+// Swipes starting at the screen edge are left alone for the browser's back gesture,
+// and so are ones on a chart, where dragging sideways reads off the values.
 let swipeStart = null;
 document.addEventListener('touchstart', e => {
     const touch = e.touches[0];
     const edge = 20;
     swipeStart = e.touches.length === 1 && touch.clientX > edge && touch.clientX < window.innerWidth - edge
+        && !e.target.closest('.line-chart')
         ? { x: touch.clientX, y: touch.clientY, time: Date.now() }
         : null;
 }, { passive: true });
@@ -653,14 +659,17 @@ function createTeamGrid(team) {
 }
 
 function showTab(tab) {
-    activeTab = tab === 'starred' ? 'starred' : 'matches';
+    activeTab = TAB_ORDER.includes(tab) ? tab : 'matches';
     savePref('tab', activeTab);
     tabButtons.forEach(btn => btn.classList.toggle('active', btn.dataset.tab === activeTab));
     matchesContainer.classList.toggle('tab-hidden', activeTab !== 'matches');
     starredContainer.classList.toggle('hidden', activeTab !== 'starred');
+    fixturesContainer.classList.toggle('hidden', activeTab !== 'fixtures');
     // Before the first load finishes there is nothing to score against; the load
     // itself renders the starred teams once it is done.
     if (activeTab === 'starred' && liveData) loadStarredTeams();
+    // Ratings only need fixtures, so they load on their own, once per visit.
+    if (activeTab === 'fixtures' && !ratingsData) loadRatings();
 }
 
 async function loadStarredTeams() {

@@ -1,4 +1,4 @@
-const CACHE_NAME = 'fpl-tracker-v8';
+const CACHE_NAME = 'fpl-tracker-v9';
 // Deliberately no '/index.html': the Worker's asset layer 307s it to '/', and
 // cache.addAll throws on a redirected response, which would fail the whole install.
 // '/' serves the same file with a 200.
@@ -6,6 +6,7 @@ const urlsToCache = [
     '/',
     '/styles.css',
     '/app.js',
+    '/ratings.js',
     '/manifest.json'
 ];
 
