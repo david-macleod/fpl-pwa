@@ -45,10 +45,7 @@ const fixturesContainer = document.getElementById('fixturesContainer');
 const TAB_ORDER = ['matches', 'starred', 'fixtures'];
 
 // Event listeners
-refreshBtn.addEventListener('click', () => {
-    fetchLeagueData();
-    if (activeTab === 'fixtures') loadRatings();
-});
+refreshBtn.addEventListener('click', () => refresh(false));
 tabButtons.forEach(btn => btn.addEventListener('click', () => showTab(btn.dataset.tab)));
 
 let activeTab = loadPref('tab', 'matches', String);
@@ -81,7 +78,42 @@ document.addEventListener('touchend', e => {
 
 // Load on startup
 window.addEventListener('load', () => {
-    fetchLeagueData();
+    refresh(false);
+});
+
+// Auto-refresh. While any match this gameweek has kicked off and its bonus isn't
+// final yet, poll often; otherwise rarely. Only while the app is on screen, and
+// straight away when it comes back (a phone wakes a PWA with stale scores).
+const LIVE_REFRESH_MS = 20000;
+const IDLE_REFRESH_MS = 300000;
+let refreshInFlight = null;
+let lastRefresh = 0;
+let refreshTimer = null;
+
+function refresh(quiet) {
+    if (refreshInFlight) return refreshInFlight;
+    refreshInFlight = Promise.all([
+        fetchLeagueData(quiet),
+        activeTab === 'fixtures' ? loadRatings() : null
+    ]).finally(() => {
+        refreshInFlight = null;
+        lastRefresh = Date.now();
+        scheduleRefresh();
+    });
+    return refreshInFlight;
+}
+
+function scheduleRefresh() {
+    clearTimeout(refreshTimer);
+    const live = Object.values(fixturesData).some(f => f.started && !f.finished);
+    refreshTimer = setTimeout(() => {
+        if (document.visibilityState === 'visible') refresh(true);
+        else scheduleRefresh();
+    }, live ? LIVE_REFRESH_MS : IDLE_REFRESH_MS);
+}
+
+document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible' && Date.now() - lastRefresh > 15000) refresh(true);
 });
 
 async function fetchApi(url) {
@@ -92,8 +124,10 @@ async function fetchApi(url) {
     return response.json();
 }
 
-async function fetchLeagueData() {
-    showLoading(true);
+// quiet: a background refresh, which leaves the current scores up with no
+// "Loading..." line while it runs.
+async function fetchLeagueData(quiet = false) {
+    if (!quiet) showLoading(true);
     hideError();
     
     try {

@@ -7,7 +7,7 @@ A minimal, mobile-optimized Progressive Web App for tracking live Fantasy Premie
 - Ultra-condensed league table view
 - Live points for all teams in league
 - Real-time rank changes
-- Auto-refresh every 30 seconds
+- Auto-refresh every 20 seconds while a match is live (every 5 minutes otherwise), and on reopening the app
 - Sticky headers for easy scrolling
 - Mobile-optimized for information density
 - Offline support with service worker
@@ -65,7 +65,7 @@ The custom domain `fpl.macleod.in` is declared in `wrangler.toml` under
 2. Enter your League ID in the app
 3. Click "Go" to load the league
 4. View live points for all teams
-5. Auto-refreshes every 30 seconds or click ↻ to refresh manually
+5. Auto-refreshes while matches are live, or click ↻ to refresh manually
 
 ## Why there's no CORS proxy any more
 
@@ -77,7 +77,7 @@ was the single biggest source of breakage — they rate-limit, 403 and disappear
 Server-side there is no CORS restriction at all. The Worker fetches
 fantasy.premierleague.com itself and serves the result from the same origin as the
 page, so the browser never makes a cross-origin request and there is no third party
-left to be flaky. It also caches at the edge (`bootstrap-static` 5min, live data 30s),
+left to be flaky. It also caches at the edge (`bootstrap-static` 5min, live data 10s; the browser is told not to cache anything but `bootstrap-static`),
 which keeps eight parallel team fetches off FPL's back.
 
 ## Files

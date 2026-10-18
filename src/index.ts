@@ -23,11 +23,14 @@ const API_PREFIX = '/api/fpl/'
  * How long the edge may reuse a response, per endpoint. Live endpoints stay short
  * so scores keep moving; bootstrap-static is ~1.5MB and changes rarely, so it gets
  * the long end. This also stops eight parallel team fetches from hammering FPL.
+ *
+ * FPL's own CDN already serves live data up to ~30s old, so every second added here
+ * is lag behind the official site on top of that.
  */
 const CACHE_TTLS: Array<[RegExp, number]> = [
   [/^bootstrap-static\//, 300],
-  [/^event\/\d+\/live\//, 30],
-  [/^fixtures\//, 30],
+  [/^event\/\d+\/live\//, 10],
+  [/^fixtures\//, 10],
   [/^entry\/\d+\/event\/\d+\/picks\//, 60],
   [/^leagues-h2h-matches\//, 60],
   [/^leagues-(h2h|classic)\//, 60],
@@ -38,6 +41,16 @@ function ttlFor(path: string): number {
     if (pattern.test(path)) return ttl
   }
   return 60
+}
+
+/**
+ * What the browser is told. Only the big, slow-changing bootstrap-static may be
+ * reused by the browser; everything else must come back to the Worker each time, so
+ * the edge cache above is the only delay and the browser cache cannot stack another
+ * one on top of it.
+ */
+function browserCacheControl(path: string): string {
+  return path.startsWith('bootstrap-static/') ? 'public, max-age=300' : 'no-cache'
 }
 
 function json(body: unknown, status = 200): Response {
@@ -66,6 +79,7 @@ async function proxyFpl(request: Request, ctx: ExecutionContext): Promise<Respon
   const hit = await cache.match(cacheKey)
   if (hit) {
     const res = new Response(hit.body, hit)
+    res.headers.set('cache-control', browserCacheControl(path))
     res.headers.set('x-fpl-cache', 'hit')
     return res
   }
@@ -95,14 +109,21 @@ async function proxyFpl(request: Request, ctx: ExecutionContext): Promise<Respon
     )
   }
 
+  // The edge copy carries the TTL (caches.default obeys it); the copy sent to the
+  // browser carries browserCacheControl instead.
   const ttl = ttlFor(path)
   const res = new Response(upstreamRes.body, upstreamRes)
   res.headers.set('cache-control', `public, max-age=${ttl}`)
-  res.headers.set('x-fpl-cache', 'miss')
   res.headers.delete('set-cookie')
-
+  // FPL's CDN sends Age (often ~30s on live data). Cloudflare counts it against
+  // max-age, so a 10s TTL on a 30s-old response would expire on arrival.
+  res.headers.delete('age')
   ctx.waitUntil(cache.put(cacheKey, res.clone()))
-  return res
+
+  const out = new Response(res.body, res)
+  out.headers.set('cache-control', browserCacheControl(path))
+  out.headers.set('x-fpl-cache', 'miss')
+  return out
 }
 
 export default {
