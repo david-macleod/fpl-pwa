@@ -24,7 +24,7 @@ let teamsInfo = {};
 let h2hMatches = [];
 let fixturesData = {};
 let liveData = null;
-let starredTeamId = loadPref('starredTeam', STARRED_TEAMS[0].id, Number);
+let starredLoadId = 0;
 
 // Register service worker
 if ('serviceWorker' in navigator) {
@@ -41,26 +41,10 @@ const gwInfo = document.getElementById('gwInfo');
 const refreshBtn = document.getElementById('refresh');
 const tabButtons = document.querySelectorAll('.tab');
 const starredContainer = document.getElementById('starredContainer');
-const starredSelect = document.getElementById('starredSelect');
-const starredTeamDiv = document.getElementById('starredTeam');
 
 // Event listeners
 refreshBtn.addEventListener('click', fetchLeagueData);
 tabButtons.forEach(btn => btn.addEventListener('click', () => showTab(btn.dataset.tab)));
-
-STARRED_TEAMS.forEach(team => {
-    const option = document.createElement('option');
-    option.value = team.id;
-    option.textContent = team.label;
-    starredSelect.appendChild(option);
-});
-if (!STARRED_TEAMS.some(t => t.id === starredTeamId)) starredTeamId = STARRED_TEAMS[0].id;
-starredSelect.value = starredTeamId;
-starredSelect.addEventListener('change', () => {
-    starredTeamId = Number(starredSelect.value);
-    savePref('starredTeam', starredTeamId);
-    if (liveData) loadStarredTeam();
-});
 
 let activeTab = loadPref('tab', 'matches', String);
 showTab(activeTab);
@@ -233,7 +217,7 @@ async function fetchAllTeamDetails() {
         // Display H2H matches with player grids
         displayMatches();
         
-        if (activeTab === 'starred') await loadStarredTeam();
+        if (activeTab === 'starred') await loadStarredTeams();
         
     } catch (error) {
         console.error('Error fetching team details:', error);
@@ -395,53 +379,53 @@ function displayMatches() {
             [team1, team2] = [team2, team1];
         }
         
-        const matchDiv = document.createElement('div');
-        matchDiv.className = 'match-container';
-        
-        // Create match header
-        const headerDiv = document.createElement('div');
-        headerDiv.className = 'match-header';
-        headerDiv.innerHTML = `
-            <div class="team-header">
-                <div class="team-info">
-                    <span class="team-name">${team1.name}</span>
-                    <span class="manager-name">${team1.manager}</span>
-                </div>
-                <span class="score">${team1.transfersCost > 0 ? `<span class="points-hit">(-${team1.transfersCost}) </span>` : ''}${team1.livePoints}</span>
-            </div>
-            <div class="team-header">
-                <div class="team-info">
-                    <span class="team-name">${team2.name}</span>
-                    <span class="manager-name">${team2.manager}</span>
-                </div>
-                <span class="score">${team2.transfersCost > 0 ? `<span class="points-hit">(-${team2.transfersCost}) </span>` : ''}${team2.livePoints}</span>
-            </div>
-        `;
-        
-        // Create teams grid container
-        const teamsGridDiv = document.createElement('div');
-        teamsGridDiv.className = 'teams-grid';
-        
-        // Team 1 grid
-        const team1GridDiv = createTeamGrid(team1);
-        teamsGridDiv.appendChild(team1GridDiv);
-        
-        // Separator
-        const separatorDiv = document.createElement('div');
-        separatorDiv.className = 'grid-separator';
-        teamsGridDiv.appendChild(separatorDiv);
-        
-        // Team 2 grid
-        const team2GridDiv = createTeamGrid(team2);
-        teamsGridDiv.appendChild(team2GridDiv);
-        
-        matchDiv.appendChild(headerDiv);
-        matchDiv.appendChild(teamsGridDiv);
-        
-        matchesContainer.appendChild(matchDiv);
+        matchesContainer.appendChild(createPairCard(team1, team2));
     });
     
     matchesContainer.classList.remove('hidden');
+}
+
+// Two teams side by side: names and live scores on top, squads below. team2 may be
+// missing (odd number of starred teams); its half is left empty so columns line up.
+function createPairCard(team1, team2) {
+    const matchDiv = document.createElement('div');
+    matchDiv.className = 'match-container';
+    
+    // Create match header
+    const headerDiv = document.createElement('div');
+    headerDiv.className = 'match-header';
+    headerDiv.innerHTML = createTeamHeader(team1) + (team2 ? createTeamHeader(team2) : '<div class="team-header"></div>');
+    
+    // Create teams grid container
+    const teamsGridDiv = document.createElement('div');
+    teamsGridDiv.className = 'teams-grid';
+    
+    // Team 1 grid
+    teamsGridDiv.appendChild(createTeamGrid(team1));
+    
+    // Separator
+    const separatorDiv = document.createElement('div');
+    separatorDiv.className = 'grid-separator';
+    teamsGridDiv.appendChild(separatorDiv);
+    
+    // Team 2 grid
+    teamsGridDiv.appendChild(team2 ? createTeamGrid(team2) : document.createElement('div'));
+    
+    matchDiv.appendChild(headerDiv);
+    matchDiv.appendChild(teamsGridDiv);
+    return matchDiv;
+}
+
+function createTeamHeader(team) {
+    return `
+        <div class="team-header">
+            <div class="team-info">
+                <span class="team-name">${team.name}</span>
+                <span class="manager-name">${team.manager}</span>
+            </div>
+            <span class="score">${team.transfersCost > 0 ? `<span class="points-hit">(-${team.transfersCost}) </span>` : ''}${team.livePoints}</span>
+        </div>
+    `;
 }
 
 function calculateAutoSubs(xi, bench) {
@@ -651,56 +635,36 @@ function showTab(tab) {
     matchesContainer.classList.toggle('tab-hidden', activeTab !== 'matches');
     starredContainer.classList.toggle('hidden', activeTab !== 'starred');
     // Before the first load finishes there is nothing to score against; the load
-    // itself renders the starred team once it is done.
-    if (activeTab === 'starred' && liveData) loadStarredTeam();
+    // itself renders the starred teams once it is done.
+    if (activeTab === 'starred' && liveData) loadStarredTeams();
 }
 
-async function loadStarredTeam() {
-    const teamId = starredTeamId;
-    try {
-        const [entry, team] = await Promise.all([
-            fetchApi(`${FPL_BASE_URL}/entry/${teamId}/`),
-            fetchTeamDetails(teamId, {})
-        ]);
-        // A newer selection may have finished first; don't paint over it.
-        if (teamId !== starredTeamId) return;
-        displayStarredTeam({
-            ...team,
-            name: entry.name,
-            manager: `${entry.player_first_name} ${entry.player_last_name}`
-        });
-    } catch (error) {
-        if (teamId !== starredTeamId) return;
-        console.error(`Error fetching starred team ${teamId}:`, error);
-        starredTeamDiv.innerHTML = '<div class="error">Failed to load team</div>';
+async function loadStarredTeams() {
+    const loadId = ++starredLoadId;
+    const teams = await Promise.all(STARRED_TEAMS.map(async ({ id, label }) => {
+        try {
+            const [entry, team] = await Promise.all([
+                fetchApi(`${FPL_BASE_URL}/entry/${id}/`),
+                fetchTeamDetails(id, {})
+            ]);
+            return {
+                ...team,
+                id,
+                name: entry.name,
+                manager: `${entry.player_first_name} ${entry.player_last_name}`
+            };
+        } catch (error) {
+            console.error(`Error fetching starred team ${id}:`, error);
+            return { id, name: label, manager: 'Failed to load', xi: [], bench: [], livePoints: 0 };
+        }
+    }));
+    // A later load (tab switch, refresh) may have finished first; don't paint over it.
+    if (loadId !== starredLoadId) return;
+    
+    starredContainer.innerHTML = '';
+    for (let i = 0; i < teams.length; i += 2) {
+        starredContainer.appendChild(createPairCard(teams[i], teams[i + 1]));
     }
-}
-
-function displayStarredTeam(team) {
-    starredTeamDiv.innerHTML = '';
-    
-    const cardDiv = document.createElement('div');
-    cardDiv.className = 'match-container';
-    
-    const headerDiv = document.createElement('div');
-    headerDiv.className = 'match-header';
-    headerDiv.innerHTML = `
-        <div class="team-header">
-            <div class="team-info">
-                <span class="team-name">${team.name}</span>
-                <span class="manager-name">${team.manager}</span>
-            </div>
-            <span class="score">${team.transfersCost > 0 ? `<span class="points-hit">(-${team.transfersCost}) </span>` : ''}${team.livePoints}</span>
-        </div>
-    `;
-    
-    const gridWrapDiv = document.createElement('div');
-    gridWrapDiv.className = 'single-team-grid';
-    gridWrapDiv.appendChild(createTeamGrid(team));
-    
-    cardDiv.appendChild(headerDiv);
-    cardDiv.appendChild(gridWrapDiv);
-    starredTeamDiv.appendChild(cardDiv);
 }
 
 // localStorage can be missing or throw (private mode, blocked storage); the app
