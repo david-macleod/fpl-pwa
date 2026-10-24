@@ -175,6 +175,17 @@ function renderRatings() {
     const provisional = (cur.H && cur.H.provisional) || (cur.A && cur.A.provisional);
 
     container.innerHTML = `
+        <div class="card">
+            <div class="card-title">All teams — next ${RATING_FIXTURES_AHEAD}</div>
+            <div class="seg">
+                <button class="seg-btn${ratingsRankBy === 'att' ? ' active' : ''}" data-rank="att">For attackers</button>
+                <button class="seg-btn${ratingsRankBy === 'def' ? ' active' : ''}" data-rank="def">For defenders</button>
+            </div>
+            ${scatterPlot(ratingsRankBy)}
+            <div class="card-subtitle">Easiest first</div>
+            ${rankingTable(ratingsRankBy === 'att' ? 'oppDef' : 'oppAtt', ratingsRankBy === 'att' ? 'def' : 'att')}
+        </div>
+
         <select id="ratingsTeamSelect" class="team-select" aria-label="Team">
             ${teams.map(t => `<option value="${t.id}"${t.id === team.id ? ' selected' : ''}>${t.name}</option>`).join('')}
         </select>
@@ -228,16 +239,6 @@ function renderRatings() {
             </div>
         </div>
 
-        <div class="card">
-            <div class="card-title">All teams — next ${RATING_FIXTURES_AHEAD}</div>
-            <div class="seg">
-                <button class="seg-btn${ratingsRankBy === 'att' ? ' active' : ''}" data-rank="att">For attackers</button>
-                <button class="seg-btn${ratingsRankBy === 'def' ? ' active' : ''}" data-rank="def">For defenders</button>
-            </div>
-            ${scatterPlot(ratingsRankBy)}
-            <div class="card-subtitle">Easiest first</div>
-            ${rankingTable(ratingsRankBy === 'att' ? 'oppDef' : 'oppAtt', ratingsRankBy === 'att' ? 'def' : 'att')}
-        </div>
     `;
 
     container.querySelector('#ratingsTeamSelect').addEventListener('change', e => selectRatingsTeam(Number(e.target.value)));
@@ -245,12 +246,15 @@ function renderRatings() {
         ratingsRankBy = btn.dataset.rank;
         renderRatings();
     }));
-    container.querySelectorAll('.rank-row').forEach(row => row.addEventListener('click', () => {
-        selectRatingsTeam(Number(row.dataset.team));
-        container.scrollIntoView({ behavior: 'smooth' });
-    }));
+    // The all-teams views sit above the team picker, so picking from them scrolls down to
+    // that team's detail.
+    const showDetail = id => {
+        selectRatingsTeam(id);
+        container.querySelector('#ratingsTeamSelect').scrollIntoView({ behavior: 'smooth' });
+    };
+    container.querySelectorAll('.rank-row').forEach(row => row.addEventListener('click', () => showDetail(Number(row.dataset.team))));
     container.querySelectorAll('.chart-wrap').forEach(wrap => attachChartHover(wrap, history[team.id], wrap.dataset.measure));
-    container.querySelectorAll('.scatter-dot').forEach(dot => dot.addEventListener('click', () => selectRatingsTeam(Number(dot.dataset.team))));
+    container.querySelectorAll('.scatter-dot').forEach(dot => dot.addEventListener('click', () => showDetail(Number(dot.dataset.team))));
 }
 
 function selectRatingsTeam(id) {
@@ -283,7 +287,7 @@ function rankingTable(key, measure) {
             <td class="rank-avg">${fmt(r.avg)}</td>
         </tr>`).join('')}
     </tbody></table>
-    <div class="note">Capitals = home, lower case = away. Tap a team to see its detail above.</div>`;
+    <div class="note">Capitals = home, lower case = away. Tap a team to see its detail below.</div>`;
 }
 
 // ---------------------------------------------------------------------------
@@ -362,7 +366,7 @@ function scatterPlot(measure) {
             </g>`;
         }).join('')}
     </svg></div>
-    <div class="note">Dashed lines are the league medians. Dot colour is how tough the fixtures are, as in the tables. Tap a team to see its detail above.</div>`;
+    <div class="note">Dashed lines are the league medians. Dot colour is how tough the fixtures are, as in the tables. Tap a team to see its detail below.</div>`;
 }
 
 // ---------------------------------------------------------------------------
