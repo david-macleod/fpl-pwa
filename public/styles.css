@@ -575,6 +575,35 @@ body {
     border-radius: 2px;
 }
 
+.card-subtitle {
+    font-weight: bold;
+    font-size: 11px;
+    color: #37003c;
+    margin: 10px 0 2px;
+}
+
+.scatter-wrap {
+    margin-top: 6px;
+}
+
+.scatter {
+    display: block;
+    width: 100%;
+    height: auto;
+    overflow: visible;
+}
+
+.scatter .grid { stroke: var(--grid); stroke-width: 1; }
+.scatter .tick { font-size: 8px; fill: var(--ink-muted); }
+.scatter .median { stroke: #c3c2b7; stroke-width: 1; stroke-dasharray: 3 3; }
+.scatter .quadrant { font-size: 8px; fill: var(--ink-muted); font-style: italic; }
+.scatter .axis-label { font-size: 9px; fill: #444; }
+.scatter .hit { fill: transparent; cursor: pointer; }
+.scatter .dot { stroke: #fff; stroke-width: 1.5; }
+.scatter .selected .dot { stroke: #37003c; stroke-width: 2; }
+.scatter .dot-label { font-size: 8px; fill: #1a1a1a; pointer-events: none; }
+.scatter .selected .dot-label { font-weight: bold; fill: #37003c; }
+
 .rank-avg {
     text-align: right;
     font-weight: bold;

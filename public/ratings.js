@@ -33,11 +33,12 @@ const clamp10 = v => Math.max(0, Math.min(10, v));
 const mean = xs => xs.reduce((s, x) => s + x, 0) / xs.length;
 
 // hist: the team's matches so far, oldest first: { gf, ga }. venue: where the rating is
-// for, 'H' or 'A'; it only shifts both ratings by the shared home advantage.
+// for, 'H' or 'A', which only shifts both ratings by the shared home advantage, or 'N'
+// for the team's overall rating with no venue.
 function formRating(hist, venue) {
     if (hist.length < RATING_MIN_GAMES) return null;
     const blend = key => 0.8 * mean(hist.map(m => m[key])) + 0.2 * mean(hist.slice(-6).map(m => m[key]));
-    const bonus = venue === 'H' ? HOME_BONUS_GOALS : -HOME_BONUS_GOALS;
+    const bonus = venue === 'H' ? HOME_BONUS_GOALS : venue === 'A' ? -HOME_BONUS_GOALS : 0;
     return {
         att: clamp10(ATTACK_SCALE.base + ATTACK_SCALE.perGoal * (blend('gf') + bonus)),
         def: clamp10(DEFENCE_SCALE.base - DEFENCE_SCALE.perGoal * (blend('ga') - bonus)),
@@ -74,6 +75,7 @@ function buildRatings(bootstrap, fixtures) {
     }
 
     const current = Object.fromEntries(teams.map(t => [t.id, {
+        N: formRating(hist[t.id], 'N'),
         H: formRating(hist[t.id], 'H'),
         A: formRating(hist[t.id], 'A'),
         played: hist[t.id].length,
@@ -227,11 +229,13 @@ function renderRatings() {
         </div>
 
         <div class="card">
-            <div class="card-title">All teams — next ${RATING_FIXTURES_AHEAD}, easiest first</div>
+            <div class="card-title">All teams — next ${RATING_FIXTURES_AHEAD}</div>
             <div class="seg">
                 <button class="seg-btn${ratingsRankBy === 'att' ? ' active' : ''}" data-rank="att">For attackers</button>
                 <button class="seg-btn${ratingsRankBy === 'def' ? ' active' : ''}" data-rank="def">For defenders</button>
             </div>
+            ${scatterPlot(ratingsRankBy)}
+            <div class="card-subtitle">Easiest first</div>
             ${rankingTable(ratingsRankBy === 'att' ? 'oppDef' : 'oppAtt', ratingsRankBy === 'att' ? 'def' : 'att')}
         </div>
     `;
@@ -246,6 +250,7 @@ function renderRatings() {
         container.scrollIntoView({ behavior: 'smooth' });
     }));
     container.querySelectorAll('.chart-wrap').forEach(wrap => attachChartHover(wrap, history[team.id], wrap.dataset.measure));
+    container.querySelectorAll('.scatter-dot').forEach(dot => dot.addEventListener('click', () => selectRatingsTeam(Number(dot.dataset.team))));
 }
 
 function selectRatingsTeam(id) {
@@ -279,6 +284,85 @@ function rankingTable(key, measure) {
         </tr>`).join('')}
     </tbody></table>
     <div class="note">Capitals = home, lower case = away. Tap a team to see its detail above.</div>`;
+}
+
+// ---------------------------------------------------------------------------
+// Scatter: every team's own rating (overall, no venue) against the average rating of
+// its next six opponents. For attackers that's attack vs opponents' defence, so strong
+// attacks with easy fixtures sit bottom right; for defenders, defence vs opponents'
+// attack. Dashed lines at the league medians split it into quadrants.
+
+const SCATTER = { w: 340, h: 270, left: 30, right: 10, top: 12, bottom: 32 };
+
+function scatterPlot(measure) {
+    const { teams, current, upcoming } = ratingsData;
+    const oppKey = measure === 'att' ? 'oppDef' : 'oppAtt';
+    const oppMeasure = measure === 'att' ? 'def' : 'att';
+    const pts = teams
+        .map(t => ({ t, x: current[t.id].N ? current[t.id].N[measure] : null, y: averageOf(upcoming[t.id], oppKey) }))
+        .filter(p => p.x !== null && p.y !== null);
+    if (pts.length < 2) return '<div class="note">Not enough games yet.</div>';
+
+    const { w, h, left, right, top, bottom } = SCATTER;
+    const range = vals => {
+        const lo = Math.max(0, Math.floor(Math.min(...vals) - 0.5)), hi = Math.min(10, Math.ceil(Math.max(...vals) + 0.5));
+        return [lo, Math.max(hi, lo + 2)];
+    };
+    const [x0, x1] = range(pts.map(p => p.x)), [y0, y1] = range(pts.map(p => p.y));
+    const x = v => left + (v - x0) / (x1 - x0) * (w - left - right);
+    const y = v => top + (1 - (v - y0) / (y1 - y0)) * (h - top - bottom);
+    const ticks = (lo, hi) => { const step = hi - lo > 6 ? 2 : 1; const out = []; for (let v = Math.ceil(lo / step) * step; v <= hi; v += step) out.push(v); return out; };
+    const median = vals => { const s = [...vals].sort((a, b) => a - b), m = s.length >> 1; return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2; };
+    const mx = median(pts.map(p => p.x)), my = median(pts.map(p => p.y));
+
+    // Team codes beside their dots: try right, left, above, below and take the first spot
+    // that doesn't overlap a label already placed or another dot.
+    const placed = [];
+    const dots = pts.map(p => ({ cx: x(p.x), cy: y(p.y) }));
+    const overlaps = (b) => placed.some(o => b.x1 > o.x0 && b.x0 < o.x1 && b.y1 > o.y0 && b.y0 < o.y1)
+        || dots.some(d => d.cx > b.x0 - 4 && d.cx < b.x1 + 4 && d.cy > b.y0 - 4 && d.cy < b.y1 + 4)
+        || b.x0 < left || b.x1 > w - right || b.y0 < top || b.y1 > h - bottom;
+    const labelFor = (cx, cy, text, r) => {
+        const tw = text.length * 5.2, th = 8, g = r + 3;   // gap clears the dot and its ring
+        const options = [
+            { lx: cx + g, ly: cy + 3, anchor: 'start', box: { x0: cx + g, x1: cx + g + tw, y0: cy - 5, y1: cy + 3 } },
+            { lx: cx - g, ly: cy + 3, anchor: 'end', box: { x0: cx - g - tw, x1: cx - g, y0: cy - 5, y1: cy + 3 } },
+            { lx: cx, ly: cy - g - 1, anchor: 'middle', box: { x0: cx - tw / 2, x1: cx + tw / 2, y0: cy - g - 1 - th, y1: cy - g - 1 } },
+            { lx: cx, ly: cy + g + 8, anchor: 'middle', box: { x0: cx - tw / 2, x1: cx + tw / 2, y0: cy + g, y1: cy + g + 8 } }
+        ];
+        const pick = options.find(o => !overlaps(o.box)) || options[0];
+        placed.push(pick.box);
+        return pick;
+    };
+    // Place the selected team's label first so it always gets the best spot.
+    const order = [...pts].sort((a, b) => (b.t.id === ratingsTeamId) - (a.t.id === ratingsTeamId));
+    const labels = new Map(order.map(p => [p.t.id, labelFor(x(p.x), y(p.y), p.t.short, p.t.id === ratingsTeamId ? 7.5 : 5)]));
+
+    const xName = measure === 'att' ? 'Attack rating' : 'Defence rating';
+    const yName = measure === 'att' ? "Next 6 opponents' defence" : "Next 6 opponents' attack";
+    return `<div class="scatter-wrap"><svg viewBox="0 0 ${w} ${h}" class="scatter" role="img"
+        aria-label="${xName} against ${yName.toLowerCase()} for every team">
+        ${ticks(x0, x1).map(v => `<line class="grid" x1="${x(v)}" x2="${x(v)}" y1="${top}" y2="${h - bottom}"/>
+            <text class="tick" x="${x(v)}" y="${h - bottom + 11}" text-anchor="middle">${v}</text>`).join('')}
+        ${ticks(y0, y1).map(v => `<line class="grid" x1="${left}" x2="${w - right}" y1="${y(v)}" y2="${y(v)}"/>
+            <text class="tick" x="${left - 5}" y="${y(v) + 3}" text-anchor="end">${v}</text>`).join('')}
+        <line class="median" x1="${x(mx)}" x2="${x(mx)}" y1="${top}" y2="${h - bottom}"/>
+        <line class="median" x1="${left}" x2="${w - right}" y1="${y(my)}" y2="${y(my)}"/>
+        <text class="quadrant" x="${w - right - 3}" y="${h - bottom - 4}" text-anchor="end">Strong ${measure === 'att' ? 'attack' : 'defence'}, easy fixtures</text>
+        <text class="quadrant" x="${left + 3}" y="${top + 9}">Weak ${measure === 'att' ? 'attack' : 'defence'}, tough fixtures</text>
+        <text class="axis-label" x="${(left + w - right) / 2}" y="${h - 3}" text-anchor="middle">${xName} (overall) →</text>
+        <text class="axis-label" transform="translate(9 ${(top + h - bottom) / 2}) rotate(-90)" text-anchor="middle">${yName} → tougher</text>
+        ${pts.map(p => {
+            const sel = p.t.id === ratingsTeamId, cx = x(p.x), cy = y(p.y), l = labels.get(p.t.id);
+            return `<g class="scatter-dot${sel ? ' selected' : ''}" data-team="${p.t.id}">
+                <title>${p.t.name}: ${xName.toLowerCase()} ${fmt(p.x)}, ${yName.toLowerCase()} ${fmt(p.y)}</title>
+                <circle class="hit" cx="${cx}" cy="${cy}" r="11"/>
+                <circle class="dot" cx="${cx}" cy="${cy}" r="${sel ? 6.5 : 5}" fill="${difficultyColour(p.y, oppMeasure)[0]}"/>
+                <text class="dot-label" x="${l.lx}" y="${l.ly}" text-anchor="${l.anchor}">${p.t.short}</text>
+            </g>`;
+        }).join('')}
+    </svg></div>
+    <div class="note">Dashed lines are the league medians. Dot colour is how tough the fixtures are, as in the tables. Tap a team to see its detail above.</div>`;
 }
 
 // ---------------------------------------------------------------------------
