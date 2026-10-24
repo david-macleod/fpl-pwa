@@ -599,10 +599,8 @@ body {
 .scatter .quadrant { font-size: 8px; fill: var(--ink-muted); font-style: italic; }
 .scatter .axis-label { font-size: 9px; fill: #444; }
 .scatter .hit { fill: transparent; cursor: pointer; }
-.scatter .dot { stroke: #fff; stroke-width: 1.5; }
-.scatter .selected .dot { stroke: #37003c; stroke-width: 2; }
-.scatter .dot-label { font-size: 8px; fill: #1a1a1a; pointer-events: none; }
-.scatter .selected .dot-label { font-weight: bold; fill: #37003c; }
+.scatter .badge-bg { fill: #fff; stroke: #e1e0d9; stroke-width: 1; }
+.scatter .selected .badge-bg { stroke: #37003c; stroke-width: 2; }
 
 .rank-avg {
     text-align: right;

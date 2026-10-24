@@ -47,7 +47,7 @@ function formRating(hist, venue) {
 }
 
 function buildRatings(bootstrap, fixtures) {
-    const teams = bootstrap.teams.map(t => ({ id: t.id, short: t.short_name, name: t.name }))
+    const teams = bootstrap.teams.map(t => ({ id: t.id, code: t.code, short: t.short_name, name: t.name }))
         .sort((a, b) => a.name.localeCompare(b.name));
     const byId = Object.fromEntries(teams.map(t => [t.id, t]));
     const hist = Object.fromEntries(teams.map(t => [t.id, []]));
@@ -292,16 +292,19 @@ function rankingTable(key, measure) {
 
 // ---------------------------------------------------------------------------
 // Scatter: every team's own rating (overall, no venue) against the average rating of
-// its next six opponents. For attackers that's attack vs opponents' defence, so strong
-// attacks with easy fixtures sit bottom right; for defenders, defence vs opponents'
-// attack. Dashed lines at the league medians split it into quadrants.
+// its next six opponents, drawn as club badges. For attackers that's attack vs
+// opponents' defence; for defenders, defence vs opponents' attack. The y axis runs
+// from tough fixtures at the bottom to easy at the top, so top right is best. Dashed
+// lines at the league medians split it into quadrants.
 
-const SCATTER = { w: 340, h: 270, left: 30, right: 10, top: 12, bottom: 32 };
+const SCATTER = { w: 340, h: 270, left: 30, right: 12, top: 14, bottom: 32 };
+const BADGE = 18, BADGE_SELECTED = 24;
+// The Premier League's own badge images, keyed by FPL's team `code` (not its id).
+const badgeUrl = code => `https://resources.premierleague.com/premierleague/badges/70/t${code}.png`;
 
 function scatterPlot(measure) {
     const { teams, current, upcoming } = ratingsData;
     const oppKey = measure === 'att' ? 'oppDef' : 'oppAtt';
-    const oppMeasure = measure === 'att' ? 'def' : 'att';
     const pts = teams
         .map(t => ({ t, x: current[t.id].N ? current[t.id].N[measure] : null, y: averageOf(upcoming[t.id], oppKey) }))
         .filter(p => p.x !== null && p.y !== null);
@@ -314,36 +317,16 @@ function scatterPlot(measure) {
     };
     const [x0, x1] = range(pts.map(p => p.x)), [y0, y1] = range(pts.map(p => p.y));
     const x = v => left + (v - x0) / (x1 - x0) * (w - left - right);
-    const y = v => top + (1 - (v - y0) / (y1 - y0)) * (h - top - bottom);
+    const y = v => top + (v - y0) / (y1 - y0) * (h - top - bottom);    // low opponent rating (easy) at the top
     const ticks = (lo, hi) => { const step = hi - lo > 6 ? 2 : 1; const out = []; for (let v = Math.ceil(lo / step) * step; v <= hi; v += step) out.push(v); return out; };
     const median = vals => { const s = [...vals].sort((a, b) => a - b), m = s.length >> 1; return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2; };
     const mx = median(pts.map(p => p.x)), my = median(pts.map(p => p.y));
 
-    // Team codes beside their dots: try right, left, above, below and take the first spot
-    // that doesn't overlap a label already placed or another dot.
-    const placed = [];
-    const dots = pts.map(p => ({ cx: x(p.x), cy: y(p.y) }));
-    const overlaps = (b) => placed.some(o => b.x1 > o.x0 && b.x0 < o.x1 && b.y1 > o.y0 && b.y0 < o.y1)
-        || dots.some(d => d.cx > b.x0 - 4 && d.cx < b.x1 + 4 && d.cy > b.y0 - 4 && d.cy < b.y1 + 4)
-        || b.x0 < left || b.x1 > w - right || b.y0 < top || b.y1 > h - bottom;
-    const labelFor = (cx, cy, text, r) => {
-        const tw = text.length * 5.2, th = 8, g = r + 3;   // gap clears the dot and its ring
-        const options = [
-            { lx: cx + g, ly: cy + 3, anchor: 'start', box: { x0: cx + g, x1: cx + g + tw, y0: cy - 5, y1: cy + 3 } },
-            { lx: cx - g, ly: cy + 3, anchor: 'end', box: { x0: cx - g - tw, x1: cx - g, y0: cy - 5, y1: cy + 3 } },
-            { lx: cx, ly: cy - g - 1, anchor: 'middle', box: { x0: cx - tw / 2, x1: cx + tw / 2, y0: cy - g - 1 - th, y1: cy - g - 1 } },
-            { lx: cx, ly: cy + g + 8, anchor: 'middle', box: { x0: cx - tw / 2, x1: cx + tw / 2, y0: cy + g, y1: cy + g + 8 } }
-        ];
-        const pick = options.find(o => !overlaps(o.box)) || options[0];
-        placed.push(pick.box);
-        return pick;
-    };
-    // Place the selected team's label first so it always gets the best spot.
-    const order = [...pts].sort((a, b) => (b.t.id === ratingsTeamId) - (a.t.id === ratingsTeamId));
-    const labels = new Map(order.map(p => [p.t.id, labelFor(x(p.x), y(p.y), p.t.short, p.t.id === ratingsTeamId ? 7.5 : 5)]));
-
+    const own = measure === 'att' ? 'attack' : 'defence';
     const xName = measure === 'att' ? 'Attack rating' : 'Defence rating';
     const yName = measure === 'att' ? "Next 6 opponents' defence" : "Next 6 opponents' attack";
+    // Selected team last, so its badge sits on top of any neighbour it overlaps.
+    const ordered = [...pts].sort((a, b) => (a.t.id === ratingsTeamId) - (b.t.id === ratingsTeamId));
     return `<div class="scatter-wrap"><svg viewBox="0 0 ${w} ${h}" class="scatter" role="img"
         aria-label="${xName} against ${yName.toLowerCase()} for every team">
         ${ticks(x0, x1).map(v => `<line class="grid" x1="${x(v)}" x2="${x(v)}" y1="${top}" y2="${h - bottom}"/>
@@ -352,21 +335,23 @@ function scatterPlot(measure) {
             <text class="tick" x="${left - 5}" y="${y(v) + 3}" text-anchor="end">${v}</text>`).join('')}
         <line class="median" x1="${x(mx)}" x2="${x(mx)}" y1="${top}" y2="${h - bottom}"/>
         <line class="median" x1="${left}" x2="${w - right}" y1="${y(my)}" y2="${y(my)}"/>
-        <text class="quadrant" x="${w - right - 3}" y="${h - bottom - 4}" text-anchor="end">Strong ${measure === 'att' ? 'attack' : 'defence'}, easy fixtures</text>
-        <text class="quadrant" x="${left + 3}" y="${top + 9}">Weak ${measure === 'att' ? 'attack' : 'defence'}, tough fixtures</text>
-        <text class="axis-label" x="${(left + w - right) / 2}" y="${h - 3}" text-anchor="middle">${xName} (overall) →</text>
-        <text class="axis-label" transform="translate(9 ${(top + h - bottom) / 2}) rotate(-90)" text-anchor="middle">${yName} → tougher</text>
-        ${pts.map(p => {
-            const sel = p.t.id === ratingsTeamId, cx = x(p.x), cy = y(p.y), l = labels.get(p.t.id);
+        <text class="quadrant" x="${w - right - 3}" y="${top + 9}" text-anchor="end">Strong ${own}, easy fixtures</text>
+        <text class="quadrant" x="${left + 3}" y="${h - bottom - 4}">Weak ${own}, tough fixtures</text>
+        <text class="axis-label" x="${(left + w - right) / 2}" y="${h - 3}" text-anchor="middle">${xName} (overall) → stronger</text>
+        <text class="axis-label" transform="translate(9 ${(top + h - bottom) / 2}) rotate(-90)" text-anchor="middle">${yName} → easier</text>
+        ${ordered.map(p => {
+            // The selected team is marked by a larger badge with a ring; no text label, which
+            // would land on a neighbour's badge in a crowded spot.
+            const sel = p.t.id === ratingsTeamId, cx = x(p.x), cy = y(p.y), size = sel ? BADGE_SELECTED : BADGE;
             return `<g class="scatter-dot${sel ? ' selected' : ''}" data-team="${p.t.id}">
                 <title>${p.t.name}: ${xName.toLowerCase()} ${fmt(p.x)}, ${yName.toLowerCase()} ${fmt(p.y)}</title>
-                <circle class="hit" cx="${cx}" cy="${cy}" r="11"/>
-                <circle class="dot" cx="${cx}" cy="${cy}" r="${sel ? 6.5 : 5}" fill="${difficultyColour(p.y, oppMeasure)[0]}"/>
-                <text class="dot-label" x="${l.lx}" y="${l.ly}" text-anchor="${l.anchor}">${p.t.short}</text>
+                <circle class="badge-bg" cx="${cx}" cy="${cy}" r="${size / 2 + 1.5}"/>
+                <image href="${badgeUrl(p.t.code)}" x="${cx - size / 2 + 2}" y="${cy - size / 2 + 2}" width="${size - 4}" height="${size - 4}"/>
+                <circle class="hit" cx="${cx}" cy="${cy}" r="${Math.max(12, size / 2 + 2)}"/>
             </g>`;
         }).join('')}
     </svg></div>
-    <div class="note">Dashed lines are the league medians. Dot colour is how tough the fixtures are, as in the tables. Tap a team to see its detail below.</div>`;
+    <div class="note">Top right is best. Dashed lines are the league medians. Tap a badge to see that team's detail below.</div>`;
 }
 
 // ---------------------------------------------------------------------------
